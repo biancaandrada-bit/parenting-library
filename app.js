@@ -1,4 +1,6 @@
 "use strict";
+// YouTube video IDs for the tutorial videos (Home "New here?" card and More → Help & tutorials). Empty = buttons hidden.
+const TUTORIAL_VIDEOS = { en: { short: "", long: "" }, ro: { short: "", long: "" } };
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -427,10 +429,11 @@ function home() {
     ? ["ce fac dacă bebelușul se îneacă", "cum gestionez o criză de furie în public", "ce pun în bagajul pentru maternitate", "what to do if my baby chokes"]
     : ["what to do if my baby chokes", "how to handle a tantrum in public", "what to pack in the hospital bag", "ce să fac când copilul lovește"];
   return `<h1>${L("Hi! 👋", "Bună! 👋")}</h1><p class="muted">${vis.length} ${L("saved videos & posts, summarised and organised.", "videoclipuri și postări salvate, rezumate și organizate.")}</p>
+    <div class="box learn" id="learnCard"><b>${L("🎬 New here? Learn the app", "🎬 Ești nouă aici? Învață aplicația")}</b>${learnBtns()}</div>
     <div class="askcard">${L("<b>✨ Ask anything</b> in the search bar above — in English or Romanian. For example:", "<b>✨ Întreabă orice</b> în bara de căutare de sus — în română sau engleză. De exemplu:")}
       <div class="chips">${ex.map((q) => `<a class="chip soft" href="#/browse?q=${encodeURIComponent(q)}">${esc(q)}</a>`).join("")}</div></div>
     ${groups}
-    <h2>${L("👣 By age & stage", "👣 După vârstă și etapă")}</h2><div class="chips">${stages}</div>
+    <h2>${L("👣 By age & stage", "👣 După vârstă și etapă")}</h2><div class="chips stages">${stages}</div>
     <div class="chips"><a class="chip soft" href="#/browse?sex=boy">${L("👦 About boys", "👦 Despre băieți")}</a><a class="chip soft" href="#/browse?sex=girl">${L("👧 About girls", "👧 Despre fete")}</a>
       <a class="chip soft" href="#/browse?aud=fathers">${L("👨 For dads", "👨 Pentru tați")}</a><a class="chip soft" href="#/browse?type=scripts">${L("💬 What to say", "💬 Ce să spui")}</a></div>
     <h2>${L("⭐ Some of the best", "⭐ Câteva dintre cele mai bune")}</h2>
@@ -688,6 +691,7 @@ function settings() {
     : local ? L("✅ Using the key from this computer's local config file (only on this PC).", "✅ Se folosește cheia din fișierul de configurare al acestui calculator (doar pe acest PC).")
     : L("⚪ No key yet.", "⚪ Nicio cheie încă.");
   return `<h1>${L("More", "Mai mult")}</h1>
+    <div class="box learn" id="learnBox"><h3 style="margin-top:0">${L("🎓 Help & tutorials", "🎓 Ajutor și tutoriale")}</h3>${learnBtns()}</div>
     <div class="box"><h3 style="margin-top:0">🌍 ${L("Language", "Limba")}</h3>
       <div class="langpick"><button class="btn ${LANG === "en" ? "on" : "ghost"}" data-lang="en">🇬🇧 English</button><button class="btn ${LANG === "ro" ? "on" : "ghost"}" data-lang="ro">🇷🇴 Română</button></div>
       <p class="muted">${L("Summaries and tips are translated automatically. Transcripts and original captions stay in the video's language.",
@@ -716,9 +720,184 @@ function settings() {
       `<tr><td>${CAT_ICON[c] || ""} <a href="#/browse?cat=${c}">${esc(catName(c))}</a><div class="muted">${esc(CAT[c].split(":").slice(1).join(":"))}</div></td><td>${counts[c] || 0}</td></tr>`).join("")}</table></div>`;
 }
 
+/* ---------- guided tour & tutorial videos ---------- */
+const tutVid = (k) => TUTORIAL_VIDEOS[LANG]?.[k] || TUTORIAL_VIDEOS[LANG === "ro" ? "en" : "ro"]?.[k] || "";
+function learnBtns() {
+  const vids = ["short", "long"].filter(tutVid);
+  return `<div class="learnrow"><button class="btn" data-tour="quick">${L("🧭 Quick tour", "🧭 Tur rapid")}</button><button class="btn ghost" data-tour="full">${L("🗺️ Full tour", "🗺️ Tur complet")}</button></div>
+    ${vids.length ? `<div class="learnrow">${vids.map((k) => `<button class="btn ghost" data-tutvid="${k}">${k === "short" ? L("▶️ Short video (~2 min)", "▶️ Video scurt (~2 min)") : L("▶️ Detailed video (~6 min)", "▶️ Video detaliat (~6 min)")}</button>`).join("")}</div>` : ""}`;
+}
+function modal(html, cls = "") {
+  closeModal();
+  document.body.insertAdjacentHTML("beforeend", `<div class="modal" data-modalbg><div class="modal-card ${cls}" role="dialog" aria-modal="true">
+    <button class="modal-x" data-modalclose aria-label="${L("Close", "Închide")}">✕</button>${html}</div></div>`);
+}
+function closeModal() { const m = $(".modal"); if (m) { m.remove(); store.set("tourSeen", 1); } }
+function playTut(k) {
+  const id = encodeURIComponent(tutVid(k));
+  if (!id) return;
+  document.querySelectorAll("video,audio").forEach((m) => m.pause());
+  modal(`<div class="vwrap"><iframe src="https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&cc_load_policy=1" title="${L("Tutorial video", "Video tutorial")}"
+    allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div>
+    <a class="small" href="https://youtu.be/${id}" target="_blank" rel="noopener">${L("Open on YouTube ↗", "Deschide pe YouTube ↗")}</a>`, "vidcard");
+}
+function maybeWelcome() {
+  if (store.get("tourSeen") || location.href.includes("notour") || TOUR) return;
+  modal(`<h2>${L("👋 New here? Want a quick tour?", "👋 Ești nouă aici? Vrei un tur rapid?")}</h2>
+    <p>${L("I'll show you the most useful parts, one at a time.", "Îți arăt pe rând cele mai utile părți.")}</p>
+    <div class="welcome"><button class="btn" data-tour="quick">${L("🧭 Quick tour (1 min)", "🧭 Tur rapid (1 min)")}</button>
+      <button class="btn ghost" data-tour="full">${L("🗺️ Full tour (3 min)", "🗺️ Tur complet (3 min)")}</button>
+      <button class="btn ghost" data-modalclose>${L("No thanks", "Nu, mulțumesc")}</button></div>
+    <p class="muted small">${L("You can start it anytime from Home or More.", "Îl poți porni oricând din Acasă sau Mai mult.")}</p>`, "welcome");
+}
+
+const TOUR_ITEM = "tt_7679833509854203149";
+const tourItem = () => "#/item/" + encodeURIComponent(BY_ID[TOUR_ITEM] ? TOUR_ITEM : (ITEMS.find((i) => !i.sensitive && i.category !== "off-topic") || ITEMS[0] || {}).id);
+const boxOf = (s) => () => $(s)?.closest(".box");
+// q: also in the quick tour; r: route to open first; s: selector or function returning the element; x: text (string or fn(full)).
+const TOUR_STEPS = [
+  { q: 1, r: "#/", s: "#q", t: L("🔍 Ask or search anything", "🔍 Întreabă sau caută orice"),
+    x: () => L("Type a question or just a word here. Typos and mixing Romanian with English are totally fine.", "Scrie aici o întrebare sau doar un cuvânt. Greșelile de scriere și amestecul de română cu engleză sunt în regulă.")
+      + " " + (apiKey() ? L("You'll also get a short AI answer with sources.", "Primești și un răspuns scurt de la AI, cu surse.")
+      : L("Want written answers too? Add a free AI key in More.", "Vrei și răspunsuri scrise? Adaugă o cheie AI gratuită în Mai mult.")) },
+  { q: 1, r: "#/", s: ".askcard", t: L("💡 Not sure what to ask?", "💡 Nu știi ce să întrebi?"),
+    x: L("Tap one of these example questions to see how searching works.", "Atinge una dintre aceste întrebări-exemplu ca să vezi cum funcționează căutarea.") },
+  { r: "#/", s: "#view .hscroll", t: L("📂 Topics", "📂 Subiecte"),
+    x: L("Videos are grouped by topic. Swipe sideways to see more and tap a topic to open it.", "Videoclipurile sunt grupate pe subiecte. Glisează în lateral ca să vezi mai multe și atinge un subiect ca să-l deschizi.") },
+  { r: "#/", s: ".chips.stages", t: L("👣 By age & stage", "👣 După vârstă și etapă"),
+    x: L("Pick your child's age, from pregnancy to the teen years, to see only what fits right now.", "Alege vârsta copilului, de la sarcină până la adolescență, ca să vezi doar ce ți se potrivește acum.") },
+  { q: 1, s: ".tabs", t: L("🧭 Main menu", "🧭 Meniul principal"),
+    x: L("These buttons are always at the bottom: Home, Browse, Library, Saved and More.", "Aceste butoane sunt mereu jos: Acasă, Explorează, Bibliotecă, Salvate și Mai mult.") },
+  { r: "#/browse", s: ".filters .row", t: L("🗂️ Filters", "🗂️ Filtre"),
+    x: L("Topic = what it's about. Stage = your child's age. Type = the kind of video (advice, what to say, demo…). Use one or combine them.",
+      "Subiect = despre ce e vorba. Etapă = vârsta copilului. Tip = felul videoclipului (sfaturi, ce să spui, demonstrație…). Folosește unul sau combină-le.") },
+  { r: "#/browse", s: ".filters .chips", t: L("✨ Quick filters", "✨ Filtre rapide"),
+    x: L("One tap: boys or girls, dads, medical topics, hide sensitive subjects, only the best (★4+), language, platform or newest first. Tap again to turn it off.",
+      "O singură atingere: băieți sau fete, tați, subiecte medicale, ascunde subiectele sensibile, doar cele mai bune (★4+), limbă, platformă sau cele mai noi. Atinge din nou ca să-l oprești.") },
+  { r: tourItem, s: () => [...document.querySelectorAll(".info > .box")].find((b) => b.querySelector(":scope > p")), t: L("📝 The summary", "📝 Rezumatul"),
+    x: L("Every video comes with a short summary, the key points and often exactly what to say to your child.", "Fiecare videoclip are un rezumat scurt, ideile principale și, de multe ori, exact ce să-i spui copilului.") },
+  { q: 1, r: tourItem, s: "#fav", t: L("❤️ Save it", "❤️ Salvează"),
+    x: (full) => L("Tap Save to keep a video. You'll find it later in the Saved tab.", "Atinge Salvează ca să păstrezi un videoclip. Îl găsești apoi în fila Salvate.")
+      + (full ? " " + L("Source opens the original post on TikTok or Instagram.", "Sursa deschide postarea originală pe TikTok sau Instagram.") : "") },
+  { r: tourItem, s: () => $(".shop")?.closest(".ments") || $(".ments"), t: L("🛒 Books & products", "🛒 Cărți și produse"),
+    x: L("Things mentioned in the video are listed here. Tap 🛒 Buy to find them in shops in your country.", "Aici apar lucrurile menționate în videoclip. Atinge 🛒 Cumpără ca să le găsești în magazinele din țara ta.") },
+  { r: tourItem, s: "#note", t: L("✏️ My note", "✏️ Notița mea"),
+    x: L("Write a private note for yourself. It's saved automatically on this device.", "Scrie-ți o notiță personală. Se salvează automat pe acest dispozitiv.") },
+  { r: tourItem, s: ".info details.box > summary", t: L("💬 What they say", "💬 Ce spun"),
+    x: L("Tap here to read the full transcript. Handy when you can't turn the sound on.", "Atinge aici ca să citești transcrierea completă. Utilă când nu poți porni sunetul.") },
+  { q: 1, r: "#/library", s: ".tabs4", t: L("📚 Library", "📚 Bibliotecă"),
+    x: L("All the books, products, shows, gifts, AI prompts, experts and creators from the videos, in one place. Swipe to pick a tab.",
+      "Toate cărțile, produsele, emisiunile, cadourile, prompturile AI, experții și creatorii din videoclipuri, într-un singur loc. Glisează ca să alegi o filă.") },
+  { r: "#/saved", s: '.tabs a[data-tab="saved"]', t: L("❤️ Saved", "❤️ Salvate"),
+    x: L("Everything you save and every note you write ends up here.", "Tot ce salvezi și toate notițele tale ajung aici.") },
+  { q: 1, s: "#langBtn", t: L("🌍 Language", "🌍 Limba"),
+    x: L("Switch the whole app between English and Romanian with one tap.", "Schimbă toată aplicația între română și engleză cu o singură atingere.") },
+  { r: "#/settings", s: () => $("#keyIn")?.closest(".row"), t: L("✨ AI answers (optional)", "✨ Răspunsuri AI (opțional)"),
+    x: L("Paste a free Google Gemini key here (aistudio.google.com → “Get API key”) to get written answers with sources. It stays only on this device.",
+      "Lipește aici o cheie Google Gemini gratuită (aistudio.google.com → „Get API key”) ca să primești răspunsuri scrise, cu surse. Rămâne doar pe acest dispozitiv.") },
+  { r: "#/settings", s: boxOf("#country"), t: L("🛒 Shopping country", "🛒 Țara pentru cumpărături"),
+    x: L("Choose your country so Buy links and prices point to shops near you.", "Alege țara ta, ca linkurile „Cumpără” și prețurile să ducă la magazine de lângă tine.") },
+  { r: "#/settings", s: boxOf("#helpOn"), t: L("🆘 Help lines", "🆘 Linii de ajutor"),
+    x: L("Turn on or off the bar with the emergency number and support lines for moms.", "Pornește sau oprește bara cu numărul de urgență și liniile de sprijin pentru mame.") },
+  { r: "#/settings", s: boxOf("#autoplay"), t: L("▶️ Autoplay", "▶️ Pornire automată"),
+    x: L("Choose whether videos start playing as soon as you open them.", "Alege dacă videoclipurile pornesc singure când le deschizi.") },
+  { r: "#/settings", s: boxOf("#exportFb"), t: L("🏷️ Feedback", "🏷️ Feedback"),
+    x: L("If a video is in the wrong category, say so on its page. Then copy all your feedback from here and send it.",
+      "Dacă un videoclip e în categoria greșită, spune asta pe pagina lui. Apoi copiază de aici tot feedback-ul și trimite-l.") },
+  { q: 1, s: ".helpbar", t: L("🆘 Help is always close", "🆘 Ajutorul e mereu aproape"),
+    x: L("At the bottom of every page: the emergency number and help lines for moms. You can restart this tour anytime from Home or More.",
+      "La finalul fiecărei pagini: numărul de urgență și linii de ajutor pentru mame. Poți reporni turul oricând din Acasă sau Mai mult.") },
+];
+let TOUR = null;
+const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
+function startTour(kind) {
+  closeModal(); store.set("tourSeen", 1);
+  TOUR?.el.remove();
+  const full = kind === "full", el = document.createElement("div");
+  el.className = "tour busy";
+  el.innerHTML = `<div class="tour-ring"></div><div class="tour-card" role="dialog" aria-modal="true" aria-live="polite"></div>`;
+  document.body.append(el);
+  TOUR = { full, el, steps: TOUR_STEPS.filter((s) => full || s.q), i: 0, n: 0, target: null };
+  tourGo(0);
+}
+async function tourGo(i) {
+  const T = TOUR;
+  if (!T || i < 0) return;
+  if (i >= T.steps.length) return endTour();
+  const st = T.steps[i], n = ++T.n;
+  T.i = i; T.target = null; T.el.classList.add("busy");
+  const r = typeof st.r === "function" ? st.r() : st.r;
+  if (r && (location.hash || "#/") !== r) {
+    location.hash = r;
+    await new Promise((ok) => { addEventListener("hashchange", () => setTimeout(ok), { once: true }); setTimeout(ok, 600); });
+  }
+  const find = () => { const e = typeof st.s === "function" ? st.s() : $(st.s); return e && e.getClientRects().length ? e : null; };
+  let el = find();
+  for (let w = 0; !el && w < 25; w++) { await sleep(100); el = find(); }
+  if (T !== TOUR || n !== T.n) return;
+  T.target = el;
+  const last = i === T.steps.length - 1, c = $(".tour-card", T.el);
+  c.innerHTML = `<button class="tour-x" data-tourend aria-label="${L("Skip the tour", "Sari peste tur")}">✕</button>
+    <div class="tour-prog"><span style="width:${((i + 1) / T.steps.length) * 100}%"></span></div><small class="tour-n">${i + 1} / ${T.steps.length}</small>
+    <h3>${st.t}</h3><p>${typeof st.x === "function" ? st.x(T.full) : st.x}</p>
+    <div class="tour-btns"><button class="tour-skip" data-tourend>${L("Skip", "Sari peste")}</button>
+      ${i ? `<button class="btn ghost" data-tourprev>${L("← Back", "← Înapoi")}</button>` : ""}
+      <button class="btn" data-tournext>${last ? L("Done ✓", "Gata ✓") : L("Next →", "Înainte →")}</button></div>`;
+  if (el && !el.closest(".top,.tabs")) {
+    el.scrollIntoView({ block: "center" });
+    // If the card fits neither below nor above, scroll the target up (not under the header) to make room below it.
+    const r = el.getBoundingClientRect(), ch = c.offsetHeight + 30, minTop = $(".top").offsetHeight + ($(".backbar")?.offsetHeight || 0) + 12;
+    if (r.bottom + ch > innerHeight && r.top - ch < 10) scrollBy(0, Math.min(r.bottom + ch - innerHeight, r.top - minTop));
+  }
+  T.el.classList.remove("busy");
+  tourPlace();
+  $("[data-tournext]", c).focus({ preventScroll: true });
+}
+function tourPlace() {
+  if (!TOUR) return;
+  const ring = $(".tour-ring", TOUR.el), c = $(".tour-card", TOUR.el), el = TOUR.target, vw = innerWidth, vh = innerHeight, m = 10;
+  const r = el && el.isConnected ? el.getBoundingClientRect() : null, cw = c.offsetWidth, ch = c.offsetHeight;
+  TOUR.el.classList.toggle("nospot", !r);
+  if (!r) { c.style.left = (vw - cw) / 2 + "px"; c.style.top = Math.max(m, (vh - ch) / 2) + "px"; return; }
+  const x1 = Math.max(3, r.left - 6), y1 = Math.max(3, r.top - 6), x2 = Math.min(vw - 3, r.right + 6), y2 = Math.min(vh - 3, r.bottom + 6);
+  Object.assign(ring.style, { left: x1 + "px", top: y1 + "px", width: Math.max(0, x2 - x1) + "px", height: Math.max(0, y2 - y1) + "px" });
+  const top = y2 + 12 + ch <= vh - m ? y2 + 12 : y1 - 12 - ch >= m ? y1 - 12 - ch : vh - ch - m;
+  c.style.top = Math.max(m, top) + "px";
+  c.style.left = Math.max(m, Math.min((x1 + x2 - cw) / 2, vw - cw - m)) + "px";
+}
+function endTour() {
+  if (!TOUR) return;
+  TOUR.el.remove(); TOUR = null;
+  for (const k in SCROLL) delete SCROLL[k];
+  (location.hash || "#/") === "#/" ? scrollTo(0, 0) : (location.hash = "#/");
+}
+addEventListener("resize", tourPlace);
+addEventListener("scroll", tourPlace, { passive: true });
+// No sound behind the tour: pause any video that starts (e.g. autoplay on the item page).
+document.addEventListener("play", (e) => { if (TOUR) e.target.pause(); }, true);
+addEventListener("keydown", (e) => {
+  if (TOUR) {
+    if (e.key === "Escape") endTour();
+    else if (e.key === "ArrowRight") tourGo(TOUR.i + 1);
+    else if (e.key === "ArrowLeft") tourGo(TOUR.i - 1);
+    else return;
+    e.preventDefault();
+  } else if (e.key === "Escape" && $(".modal")) closeModal();
+});
+
 /* ---------- events ---------- */
 document.addEventListener("click", async (e) => {
   const t = e.target;
+  const tb = t.closest("[data-tour]");
+  if (tb) { startTour(tb.dataset.tour); return; }
+  if (t.closest("[data-tutvid]")) { playTut(t.closest("[data-tutvid]").dataset.tutvid); return; }
+  if (t.closest("[data-modalclose]") || t.matches("[data-modalbg]")) { closeModal(); return; }
+  if (TOUR) {
+    if (t.closest("[data-tournext]")) tourGo(TOUR.i + 1);
+    else if (t.closest("[data-tourprev]")) tourGo(TOUR.i - 1);
+    else if (t.closest("[data-tourend]")) endTour();
+    return;
+  }
   const more = t.closest("[data-more]");
   if (more) { paged.state[more.dataset.more] += 30; route(true); return; }
   if (t.closest("[data-shuffle]")) { e.preventDefault(); BEST_SEED = Math.random(); route(true); return; }
@@ -834,4 +1013,4 @@ function shellText() {
   document.querySelectorAll(".tabs a").forEach((a) => { const s = a.querySelector("span"); if (s) s.textContent = tabs[a.dataset.tab]; });
 }
 shellText();
-load();
+load().then(maybeWelcome);
