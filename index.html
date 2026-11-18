@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f7efe8">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Parenting">
+<meta name="robots" content="noindex, nofollow">
+<title>Parenting Library</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌱</text></svg>">
+<link rel="stylesheet" href="style.css?v=11">
+</head>
+<body>
+<header class="top">
+  <div class="toprow"><a href="#/" class="brand">🌱 Parenting Library</a><button id="langBtn" class="langbtn" type="button">🇷🇴 Română</button></div>
+  <form id="searchForm" class="search">
+    <input id="q" type="search" placeholder="Ask or search anything…" autocomplete="off" enterkeyhint="search">
+  </form>
+</header>
+<main id="view"></main>
+<nav class="tabs">
+  <a href="#/" data-tab="home">🏠<span>Home</span></a>
+  <a href="#/browse" data-tab="browse">🗂️<span>Browse</span></a>
+  <a href="#/library" data-tab="library">📚<span>Library</span></a>
+  <a href="#/saved" data-tab="saved">❤️<span>Saved</span></a>
+  <a href="#/settings" data-tab="settings">⚙️<span>More</span></a>
+</nav>
+<!-- Local testing only: holds the Gemini key; missing on the published site, which is fine. -->
+<script src="config.local.js" onerror="void 0"></script>
+<script src="site-config.js" onerror="void 0"></script>
+<script src="app.js?v=11"></script>
+</body>
+</html>
