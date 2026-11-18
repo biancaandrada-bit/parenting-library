@@ -1,6 +1,6 @@
 "use strict";
 // YouTube video IDs for the tutorial videos (Home "New here?" card and More → Help & tutorials). Empty = buttons hidden.
-const TUTORIAL_VIDEOS = { en: { short: "", long: "" }, ro: { short: "", long: "" } };
+const TUTORIAL_VIDEOS = { en: { short: "Bxj8gAlOwNA", long: "f8Hysx_V0E4" }, ro: { short: "K9ljXa3s7kk", long: "KX2a2jl9YC0" } };
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -725,7 +725,7 @@ const tutVid = (k) => TUTORIAL_VIDEOS[LANG]?.[k] || TUTORIAL_VIDEOS[LANG === "ro
 function learnBtns() {
   const vids = ["short", "long"].filter(tutVid);
   return `<div class="learnrow"><button class="btn" data-tour="quick">${L("🧭 Quick tour", "🧭 Tur rapid")}</button><button class="btn ghost" data-tour="full">${L("🗺️ Full tour", "🗺️ Tur complet")}</button></div>
-    ${vids.length ? `<div class="learnrow">${vids.map((k) => `<button class="btn ghost" data-tutvid="${k}">${k === "short" ? L("▶️ Short video (~2 min)", "▶️ Video scurt (~2 min)") : L("▶️ Detailed video (~6 min)", "▶️ Video detaliat (~6 min)")}</button>`).join("")}</div>` : ""}`;
+    ${vids.length ? `<div class="learnrow">${vids.map((k) => `<button class="btn ghost" data-tutvid="${k}">${k === "short" ? L("▶️ Short video (~3 min)", "▶️ Video scurt (~3 min)") : L("▶️ Detailed video (~6 min)", "▶️ Video detaliat (~6 min)")}</button>`).join("")}</div>` : ""}`;
 }
 function modal(html, cls = "") {
   closeModal();
