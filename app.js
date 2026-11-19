@@ -713,6 +713,14 @@ function settings() {
     <div class="box"><h3 style="margin-top:0">🆘 ${L("Help lines", "Linii de ajutor")}</h3>
       <label class="toggle"><input type="checkbox" id="helpOn" ${p.help !== false ? "checked" : ""}> ${L("Show the help bar at the bottom of every page", "Arată bara de ajutor la finalul fiecărei pagini")}</label>
       <p><a href="#/help">${L("See all help lines →", "Vezi toate liniile de ajutor →")}</a></p></div>
+    <div class="box" id="backupBox"><h3 style="margin-top:0">💾 ${L("Backup", "Copie de siguranță")}</h3>
+      <p class="muted">${L(`Your saved videos (${store.get("favs", []).length}), notes (${Object.keys(store.get("notes", {})).length}) and settings live only in this browser. Save a copy to move them to another phone, or to get them back if the browser data is cleared.`,
+        `Videoclipurile salvate (${store.get("favs", []).length}), notițele (${Object.keys(store.get("notes", {})).length}) și setările stau doar în acest browser. Salvează o copie ca să le muți pe alt telefon sau să le recuperezi dacă se șterg datele browserului.`)}</p>
+      ${own ? `<label class="toggle"><input type="checkbox" id="bkKey"> ${L("Include my AI key (keep the file private)", "Include și cheia AI (păstrează fișierul doar pentru tine)")}</label>` : ""}
+      <div class="row" style="margin-top:8px"><button class="btn" id="bkSave">⬇️ ${L("Save a copy", "Salvează o copie")}</button>
+      <button class="btn ghost" id="bkLoad">⬆️ ${L("Restore from a copy", "Restaurează dintr-o copie")}</button>
+      <input type="file" id="bkFile" accept=".json,application/json" hidden></div>
+      <div id="bkMsg" class="keymsg"></div></div>
     <div class="box"><h3 style="margin-top:0">${L("🏷️ Category feedback", "🏷️ Feedback categorii")}</h3><p class="muted">${n} ${L("items with feedback on this device.", "elemente cu feedback pe acest dispozitiv.")}</p>
       <button class="btn" id="exportFb" ${n ? "" : "disabled"}>${L("Copy feedback", "Copiază feedback-ul")}</button>
       <button class="btn ghost" id="clearFb" ${n ? "" : "disabled"}>${L("Clear", "Șterge")}</button></div>
@@ -941,6 +949,43 @@ document.addEventListener("click", async (e) => {
     catch { const w = window.open(); w.document.body.innerText = txt; }
   }
   if (t.id === "clearFb" && confirm(L("Clear all category feedback?", "Ștergi tot feedback-ul pentru categorii?"))) { store.set("feedback", {}); route(); }
+  if (t.id === "bkSave") {
+    const settings = { ...store.get("settings", {}) };
+    if (!$("#bkKey")?.checked) delete settings.key;
+    const data = { app: "parenting-library", version: 1, saved: new Date().toISOString(),
+      favs: store.get("favs", []), notes: store.get("notes", {}), feedback: store.get("feedback", {}), settings };
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: "application/json" }));
+    a.download = `parenting-library-backup-${data.saved.slice(0, 10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    const m = $("#bkMsg"); m.className = "keymsg ok";
+    m.textContent = L("✅ Copy saved to your Downloads / Files.", "✅ Copia a fost salvată în Descărcări / Fișiere.");
+  }
+  if (t.id === "bkLoad") $("#bkFile").click();
+});
+document.addEventListener("change", async (e) => {
+  if (e.target.id !== "bkFile" || !e.target.files[0]) return;
+  const m = $("#bkMsg");
+  try {
+    const d = JSON.parse(await e.target.files[0].text());
+    if (d.app !== "parenting-library") throw new Error("not a Parenting Library backup");
+    const favs = store.get("favs", []);
+    (d.favs || []).forEach((id) => favs.includes(id) || favs.push(id));
+    store.set("favs", favs);
+    store.set("notes", { ...store.get("notes", {}), ...(d.notes || {}) });
+    store.set("feedback", { ...store.get("feedback", {}), ...(d.feedback || {}) });
+    const s = store.get("settings", {}), bs = d.settings || {};
+    store.set("settings", { ...bs, ...s, key: s.key || bs.key });
+    route(true);
+    const m2 = $("#bkMsg"); m2.className = "keymsg ok";
+    m2.textContent = L(`✅ Restored: ${(d.favs || []).length} saved videos, ${Object.keys(d.notes || {}).length} notes.`,
+      `✅ Restaurat: ${(d.favs || []).length} videoclipuri salvate, ${Object.keys(d.notes || {}).length} notițe.`);
+  } catch (err) {
+    m.className = "keymsg bad";
+    m.textContent = `❌ ${L("This file couldn't be restored", "Fișierul nu a putut fi restaurat")}: ${err.message}`;
+  }
+  e.target.value = "";
 });
 document.addEventListener("change", (e) => {
   if (e.target.id === "autoplay") { setPref("autoplay", e.target.checked); return; }
