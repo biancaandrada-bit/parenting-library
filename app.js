@@ -750,20 +750,64 @@ function playTut(k) {
     allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div>
     <a class="small" href="https://youtu.be/${id}" target="_blank" rel="noopener">${L("Open on YouTube ↗", "Deschide pe YouTube ↗")}</a>`, "vidcard");
 }
+const GIFT_TEXT = {
+  en: ["Hi 💛",
+    "For years I've been saving videos that I found useful, interesting or simply beautiful. For the last few months I've had the idea of putting them all together in one place, and now it's ready for all my loved ones to use.",
+    "I hope you'll find ideas, help and tools here, the things that I also thought were cool or important.",
+    "It's a very versatile collection: from conception to tantrums, exercises, game ideas, keepsakes, babies and big kids, sensitive topics, even apps that hide your child's face in photos and videos. Hopefully everything you need or want is in here.",
+    "<b>One important thing:</b> these are all videos from people on the internet (parents, teachers, coaches, some doctors and others) sharing their advice and personal experiences. So remember that these are their own, biased opinions and experiences. Enjoy it as content, go through your own critical thinking, keep what feels cool and useful to you, and leave what doesn't.",
+    "I hope it helps, and that you enjoy it whenever you have the time to go through it.",
+    "📖 I'm also working on putting all the important information together in a PDF book. That one is coming soon."],
+  ro: ["Bună 💛",
+    "De ani de zile salvez videoclipuri care mi s-au părut utile, interesante sau pur și simplu frumoase. De câteva luni m-am gândit să le adun pe toate într-un singur loc, iar acum e gata, pentru toți cei dragi mie.",
+    "Sper să găsești aici idei, ajutor și instrumente, lucrurile pe care și eu le-am găsit faine sau importante.",
+    "E o colecție foarte variată: de la concepție la crize de furie, exerciții, idei de jocuri, amintiri de păstrat, bebeluși și copii mai mari, subiecte sensibile, chiar și aplicații care ascund fața copilului în poze și videoclipuri. Sper că găsești aici tot ce ai nevoie sau îți dorești.",
+    "<b>Un lucru important:</b> toate sunt videoclipuri de la oameni de pe internet (părinți, profesori, coach-uri, câțiva medici și alții) care își împărtășesc sfaturile și experiențele personale. Așa că nu uita că sunt părerile și experiențele lor, subiective. Bucură-te de ele ca de un conținut, trece-le prin propria gândire critică, păstrează ce ți se pare fain și util și lasă deoparte ce nu.",
+    "Sper să te ajute și să te bucuri de ea oricând ai timp s-o răsfoiești.",
+    "📖 Lucrez și la o carte PDF cu toate informațiile importante. Aceea vine în curând."],
+};
+function showGift() {
+  store.set("giftSeen", 1);
+  const ov = document.createElement("div");
+  ov.className = "gift-ov";
+  ov.innerHTML = `<div class="gift-card" role="dialog" aria-modal="true">
+    <div class="gift-inside">
+      ${GIFT_TEXT[LANG].map((p, i) => `<p style="--d:${i}">${p}</p>`).join("")}
+      <p class="gift-sign" style="--d:${GIFT_TEXT[LANG].length}">${L("With love, Bianca", "Cu drag, Bianca")}</p>
+      <p class="small muted" style="--d:${GIFT_TEXT[LANG].length + 1}">📱 ${L("Tip: add the app to your home screen from the browser menu (⋮ or Share → “Add to Home Screen”).", "Sfat: adaugă aplicația pe ecranul principal din meniul browserului (⋮ sau Distribuie → „Adaugă pe ecranul principal”).")}</p>
+      <div class="welcome" style="--d:${GIFT_TEXT[LANG].length + 2}"><button class="btn" data-tour="quick">${L("🧭 Show me around (1 min)", "🧭 Arată-mi aplicația (1 min)")}</button>
+        <button class="btn ghost" data-giftclose>${L("I'll explore on my own", "Explorez pe cont propriu")}</button></div>
+    </div>
+    <button class="gift-cover" aria-label="${L("Open the card", "Deschide felicitarea")}">
+      <span class="gift-ribbon"></span><span class="gift-bow">🎀</span>
+      <span class="gift-for">${L("For you", "Pentru tine")}</span>
+      <span class="gift-from">${L("from Bianca, with love", "de la Bianca, cu drag")}</span>
+      <span class="gift-tap">${L("Tap to open", "Atinge ca să deschizi")}</span>
+    </button></div>`;
+  document.body.appendChild(ov);
+  const burst = (n) => {
+    const set = ["💛", "💗", "✨", "🌸", "⭐", "💕"];
+    for (let i = 0; i < n; i++) {
+      const s = document.createElement("span");
+      s.className = "gift-fx";
+      s.textContent = set[i % set.length];
+      s.style.cssText = `left:${Math.random() * 100}vw;--x:${(Math.random() - 0.5) * 160}px;--r:${(Math.random() - 0.5) * 720}deg;font-size:${14 + Math.random() * 22}px;animation-delay:${Math.random() * 0.9}s;animation-duration:${2.6 + Math.random() * 2}s`;
+      ov.appendChild(s);
+      setTimeout(() => s.remove(), 6000);
+    }
+  };
+  requestAnimationFrame(() => ov.classList.add("in"));
+  ov.addEventListener("click", (e) => {
+    if (e.target.closest(".gift-cover") && !ov.classList.contains("open")) {
+      ov.classList.add("open"); burst(46);
+      setTimeout(() => ov.classList.add("opened"), 1300);
+    } else if (e.target.closest("[data-giftclose],[data-tour]")) {
+      ov.classList.add("out"); setTimeout(() => ov.remove(), 400);
+    }
+  });
+}
 function maybeWelcome() {
-  if (location.search.includes("gift") && !store.get("giftSeen")) {
-    store.set("giftSeen", 1);
-    return modal(`<div class="gift"><div class="gift-top">🌱</div>
-      <h2>${L("For you and the baby 💛", "Pentru tine și bebe 💛")}</h2>
-      <p>${L("I gathered more than 1,000 videos with advice from parents and specialists for you: pregnancy, birth, breastfeeding, sleep, tantrums, toys, books and everything that comes after. They're all in one place, sorted by category, so you can quickly find what you need, save your favourites and ask any question.",
-        "Am adunat pentru tine peste 1.000 de videoclipuri cu sfaturi de la părinți și specialiști: sarcina, nașterea, alăptarea, somnul, crizele de furie, jucăriile, cărțile și tot ce vine după. Sunt toate într-un singur loc, pe categorii, ca să găsești repede ce ai nevoie, să-ți salvezi preferatele și să pui orice întrebare.")}</p>
-      <p>${L("I hope it helps on the hard days and brings you joy on the good ones.", "Sper să-ți fie de ajutor în zilele grele și să te bucure în cele frumoase.")}</p>
-      <p class="gift-sign">${L("With love, Bianca", "Cu drag, Bianca")}</p>
-      <p class="muted small">📖 ${L("The book is coming soon.", "Cartea vine în curând.")}</p>
-      <p class="small">📱 ${L("Tip: add it to your home screen from the browser menu (⋮ or Share → “Add to Home Screen”).", "Sfat: adaug-o pe ecranul principal din meniul browserului (⋮ sau Distribuie → „Adaugă pe ecranul principal”).")}</p>
-      <div class="welcome"><button class="btn" data-tour="quick">${L("🧭 Show me around (1 min)", "🧭 Arată-mi aplicația (1 min)")}</button>
-      <button class="btn ghost" data-modalclose>${L("I'll explore on my own", "Explorez singură")}</button></div></div>`, "welcome");
-  }
+  if (location.search.includes("gift") && !store.get("giftSeen")) return showGift();
   if (store.get("tourSeen") || location.href.includes("notour") || TOUR) return;
   modal(`<h2>${L("👋 New here? Want a quick tour?", "👋 Ești nouă aici? Vrei un tur rapid?")}</h2>
     <p>${L("I'll show you the most useful parts, one at a time.", "Îți arăt pe rând cele mai utile părți.")}</p>
@@ -826,6 +870,9 @@ const TOUR_STEPS = [
   { r: "#/settings", s: boxOf("#exportFb"), t: L("🏷️ Feedback", "🏷️ Feedback"),
     x: L("If a video is in the wrong category, say so on its page. Then copy all your feedback from here and send it.",
       "Dacă un videoclip e în categoria greșită, spune asta pe pagina lui. Apoi copiază de aici tot feedback-ul și trimite-l.") },
+  { q: 1, r: "#/settings", s: boxOf("#bkSave"), t: L("💾 Keep a backup", "💾 Păstrează o copie"),
+    x: L("Your saved videos, notes and settings live only in this browser. Save a copy now and then, and restore it on a new phone or if the browser data is cleared.",
+      "Videoclipurile salvate, notițele și setările stau doar în acest browser. Salvează din când în când o copie și restaureaz-o pe un telefon nou sau dacă se șterg datele browserului.") },
   { q: 1, s: ".helpbar", t: L("🆘 Help is always close", "🆘 Ajutorul e mereu aproape"),
     x: L("At the bottom of every page: the emergency number and help lines for moms. You can restart this tour anytime from Home or More.",
       "La finalul fiecărei pagini: numărul de urgență și linii de ajutor pentru mame. Poți reporni turul oricând din Acasă sau Mai mult.") },
