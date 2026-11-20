@@ -16,6 +16,7 @@ const apiKey = () => (prefs().ai === false ? "" : prefs().key || window.LOCAL_GE
 const COUNTRY = () => prefs().country || "Romania";
 // Online version: videos live on Cloudflare R2 (set in site-config.js); locally they come from media/video/.
 const vsrc = (p) => (window.VIDEO_BASE && p.startsWith("media/video/") ? window.VIDEO_BASE + p.slice(12) : p);
+{ const ql = new URLSearchParams(location.search).get("lang"); if ((ql === "ro" || ql === "en") && !prefs().lang) setPref("lang", ql); }
 const LANG = prefs().lang === "ro" ? "ro" : "en";
 const L = (en, ro) => (LANG === "ro" ? ro : en);
 let RO = null;
@@ -750,6 +751,19 @@ function playTut(k) {
     <a class="small" href="https://youtu.be/${id}" target="_blank" rel="noopener">${L("Open on YouTube ↗", "Deschide pe YouTube ↗")}</a>`, "vidcard");
 }
 function maybeWelcome() {
+  if (location.search.includes("gift") && !store.get("giftSeen")) {
+    store.set("giftSeen", 1);
+    return modal(`<div class="gift"><div class="gift-top">🌱</div>
+      <h2>${L("For you and the baby 💛", "Pentru tine și bebe 💛")}</h2>
+      <p>${L("I gathered more than 1,000 videos with advice from parents and specialists for you: pregnancy, birth, breastfeeding, sleep, tantrums, toys, books and everything that comes after. They're all in one place, sorted by category, so you can quickly find what you need, save your favourites and ask any question.",
+        "Am adunat pentru tine peste 1.000 de videoclipuri cu sfaturi de la părinți și specialiști: sarcina, nașterea, alăptarea, somnul, crizele de furie, jucăriile, cărțile și tot ce vine după. Sunt toate într-un singur loc, pe categorii, ca să găsești repede ce ai nevoie, să-ți salvezi preferatele și să pui orice întrebare.")}</p>
+      <p>${L("I hope it helps on the hard days and brings you joy on the good ones.", "Sper să-ți fie de ajutor în zilele grele și să te bucure în cele frumoase.")}</p>
+      <p class="gift-sign">${L("With love, Bianca", "Cu drag, Bianca")}</p>
+      <p class="muted small">📖 ${L("The book is coming soon.", "Cartea vine în curând.")}</p>
+      <p class="small">📱 ${L("Tip: add it to your home screen from the browser menu (⋮ or Share → “Add to Home Screen”).", "Sfat: adaug-o pe ecranul principal din meniul browserului (⋮ sau Distribuie → „Adaugă pe ecranul principal”).")}</p>
+      <div class="welcome"><button class="btn" data-tour="quick">${L("🧭 Show me around (1 min)", "🧭 Arată-mi aplicația (1 min)")}</button>
+      <button class="btn ghost" data-modalclose>${L("I'll explore on my own", "Explorez singură")}</button></div></div>`, "welcome");
+  }
   if (store.get("tourSeen") || location.href.includes("notour") || TOUR) return;
   modal(`<h2>${L("👋 New here? Want a quick tour?", "👋 Ești nouă aici? Vrei un tur rapid?")}</h2>
     <p>${L("I'll show you the most useful parts, one at a time.", "Îți arăt pe rând cele mai utile părți.")}</p>
