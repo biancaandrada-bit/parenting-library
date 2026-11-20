@@ -1,6 +1,6 @@
 "use strict";
 // YouTube video IDs for the tutorial videos (Home "New here?" card and More → Help & tutorials). Empty = buttons hidden.
-const TUTORIAL_VIDEOS = { en: { short: "qSs4VHZXorw", long: "gsC_dX7n-Lg" }, ro: { short: "bUf5t6M2aTw", long: "5GJ8XXCNflE" } };
+const TUTORIAL_VIDEOS = { en: { short: "qSs4VHZXorw", long: "gsC_dX7n-Lg" }, ro: { short: "ESDlTTuySII", long: "mNdrL7BHEJM" } };
 const $ = (s, el = document) => el.querySelector(s);
 const view = $("#view");
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
