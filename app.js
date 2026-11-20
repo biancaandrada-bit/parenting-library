@@ -767,7 +767,7 @@ const GIFT_TEXT = {
     "📖 Lucrez și la o carte PDF cu toate informațiile importante. Aceea vine în curând."],
 };
 function showGift() {
-  store.set("giftSeen", 1);
+  history.replaceState(null, "", location.pathname + location.hash);
   const ov = document.createElement("div");
   ov.className = "gift-ov";
   ov.innerHTML = `<div class="gift-card" role="dialog" aria-modal="true">
@@ -807,7 +807,7 @@ function showGift() {
   });
 }
 function maybeWelcome() {
-  if (location.search.includes("gift") && !store.get("giftSeen")) return showGift();
+  if (/[?&]gift\b/.test(location.search)) return showGift();
   if (store.get("tourSeen") || location.href.includes("notour") || TOUR) return;
   modal(`<h2>${L("👋 New here? Want a quick tour?", "👋 Ești nouă aici? Vrei un tur rapid?")}</h2>
     <p>${L("I'll show you the most useful parts, one at a time.", "Îți arăt pe rând cele mai utile părți.")}</p>
