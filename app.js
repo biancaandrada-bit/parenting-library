@@ -753,39 +753,41 @@ function playTut(k) {
 }
 const GIFT_TEXT = {
   en: ["Hi 💛",
-    "For years I've been saving videos that I found useful, interesting or simply beautiful. For the last few months I've had the idea of putting them all together in one place, and now it's ready for all my loved ones to use.",
-    "I hope you'll find ideas, help and tools here, the things that I also thought were cool or important.",
-    "It's a very versatile collection: from conception to tantrums, exercises, game ideas, keepsakes, babies and big kids, sensitive topics, even apps that hide your child's face in photos and videos. Hopefully everything you need or want is in here.",
-    "<b>One important thing:</b> these are all videos from people on the internet (parents, teachers, coaches, some doctors and others) sharing their advice and personal experiences. So remember that these are their own, biased opinions and experiences. Enjoy it as content, go through your own critical thinking, keep what feels cool and useful to you, and leave what doesn't.",
-    "I hope it helps, and that you enjoy it whenever you have the time to go through it.",
-    "📖 I'm also working on putting all the important information together in a PDF book. That one is coming soon."],
+    "For years I've been saving videos I found useful or beautiful. For the last few months I've been putting them together, and now they're ready for all my loved ones.",
+    "It's a very varied collection: conception, tantrums, exercises, games, keepsakes, babies and big kids, sensitive topics, even apps that hide your child's face. I hope you'll find ideas, help and tools here.",
+    "<b>Keep in mind:</b> these are people from the internet (parents, teachers, coaches, some doctors) sharing their own, biased opinions and experiences. Use your own critical thinking: keep what's useful to you and leave what isn't.",
+    "Enjoy it whenever you have time. 📖 A PDF book is coming soon."],
   ro: ["Bună 💛",
-    "De ani de zile salvez videoclipuri care mi s-au părut utile, interesante sau pur și simplu frumoase. De câteva luni m-am gândit să le adun pe toate într-un singur loc, iar acum e gata, pentru toți cei dragi mie.",
-    "Sper să găsești aici idei, ajutor și instrumente, lucrurile pe care și eu le-am găsit faine sau importante.",
-    "E o colecție foarte variată: de la concepție la crize de furie, exerciții, idei de jocuri, amintiri de păstrat, bebeluși și copii mai mari, subiecte sensibile, chiar și aplicații care ascund fața copilului în poze și videoclipuri. Sper că găsești aici tot ce ai nevoie sau îți dorești.",
-    "<b>Un lucru important:</b> toate sunt videoclipuri de la oameni de pe internet (părinți, profesori, coach-uri, câțiva medici și alții) care își împărtășesc sfaturile și experiențele personale. Așa că nu uita că sunt părerile și experiențele lor, subiective. Bucură-te de ele ca de un conținut, trece-le prin propria gândire critică, păstrează ce ți se pare fain și util și lasă deoparte ce nu.",
-    "Sper să te ajute și să te bucuri de ea oricând ai timp s-o răsfoiești.",
-    "📖 Lucrez și la o carte PDF cu toate informațiile importante. Aceea vine în curând."],
-};
-function showGift() {
+    "De ani de zile salvez videoclipuri care mi s-au părut utile sau frumoase. În ultimele luni le-am adunat la un loc, iar acum sunt gata pentru toți cei dragi mie.",
+    "E o colecție foarte variată: concepție, crize de furie, exerciții, jocuri, amintiri de păstrat, bebeluși și copii mai mari, subiecte sensibile, chiar și aplicații care ascund fața copilului. Sper să găsești aici idei, ajutor și instrumente.",
+    "<b>Nu uita:</b> sunt oameni de pe internet (părinți, profesori, coach-uri, câțiva medici) care își împărtășesc propriile păreri și experiențe, subiective. Folosește-ți gândirea critică: păstrează ce te ajută și lasă ce nu.",
+    "Bucură-te de ea oricând ai timp. 📖 În curând vine și o carte PDF."],
+};function showGift() {
   history.replaceState(null, "", location.pathname + location.hash);
   const ov = document.createElement("div");
   ov.className = "gift-ov";
-  ov.innerHTML = `<div class="gift-card" role="dialog" aria-modal="true">
-    <div class="gift-inside">
-      ${GIFT_TEXT[LANG].map((p, i) => `<p style="--d:${i}">${p}</p>`).join("")}
-      <p class="gift-sign" style="--d:${GIFT_TEXT[LANG].length}">${L("With love, Bianca", "Cu drag, Bianca")}</p>
-      <p class="small muted" style="--d:${GIFT_TEXT[LANG].length + 1}">📱 ${L("Tip: add the app to your home screen from the browser menu (⋮ or Share → “Add to Home Screen”).", "Sfat: adaugă aplicația pe ecranul principal din meniul browserului (⋮ sau Distribuie → „Adaugă pe ecranul principal”).")}</p>
-      <div class="welcome" style="--d:${GIFT_TEXT[LANG].length + 2}"><button class="btn" data-tour="quick">${L("🧭 Show me around (1 min)", "🧭 Arată-mi aplicația (1 min)")}</button>
-        <button class="btn ghost" data-giftclose>${L("I'll explore on my own", "Explorez pe cont propriu")}</button></div>
+  const G = GIFT_TEXT[LANG];
+  ov.innerHTML = `<div class="gift-card" tabindex="-1" role="dialog" aria-modal="true" aria-label="${L("A card from Bianca", "O felicitare de la Bianca")}">
+    <div class="gift-inside"><div class="gift-text">
+      ${G.map((p, i) => `<p style="--d:${i}">${p}</p>`).join("")}
+      <p class="gift-sign" style="--d:${G.length}">${L("With love, Bianca", "Cu drag, Bianca")}</p>
+      <div class="gift-end" style="--d:${G.length + 1}"><button class="btn" data-tour="quick">${L("🧭 Show me around", "🧭 Arată-mi aplicația")}</button>
+        <button class="btn ghost" data-giftclose>${L("Close", "Închide")}</button></div></div>
     </div>
     <button class="gift-cover" aria-label="${L("Open the card", "Deschide felicitarea")}">
-      <span class="gift-ribbon"></span><span class="gift-bow">🎀</span>
-      <span class="gift-for">${L("For you", "Pentru tine")}</span>
-      <span class="gift-from">${L("from Bianca, with love", "de la Bianca, cu drag")}</span>
+      <span class="gift-ribbon"></span><span class="gift-bow" aria-hidden="true">🎀</span>
+      <span class="gift-tag"><span class="gift-for">${L("For you", "Pentru tine")}</span>
+        <span class="gift-from">${L("from Bianca, with love", "de la Bianca, cu drag")}</span></span>
       <span class="gift-tap">${L("Tap to open", "Atinge ca să deschizi")}</span>
     </button></div>`;
   document.body.appendChild(ov);
+  const fit = () => {
+    const box = $(".gift-inside", ov), txt = $(".gift-text", ov);
+    let fs = 22;
+    txt.style.fontSize = fs + "px";
+    while (fs > 8 && txt.scrollHeight > box.clientHeight) txt.style.fontSize = (fs -= 0.25) + "px";
+  };
+  addEventListener("resize", fit);
   const burst = (n) => {
     const set = ["💛", "💗", "✨", "🌸", "⭐", "💕"];
     for (let i = 0; i < n; i++) {
@@ -797,15 +799,15 @@ function showGift() {
       setTimeout(() => s.remove(), 6000);
     }
   };
-  requestAnimationFrame(() => ov.classList.add("in"));
+  const close = () => { removeEventListener("resize", fit); ov.classList.add("out"); setTimeout(() => ov.remove(), 400); };
+  requestAnimationFrame(() => { ov.classList.add("in"); fit(); $(".gift-cover", ov).focus(); });
   ov.addEventListener("click", (e) => {
     if (e.target.closest(".gift-cover") && !ov.classList.contains("open")) {
       ov.classList.add("open"); burst(46);
-      setTimeout(() => ov.classList.add("opened"), 1300);
-    } else if (e.target.closest("[data-giftclose],[data-tour]")) {
-      ov.classList.add("out"); setTimeout(() => ov.remove(), 400);
-    }
+      setTimeout(() => { ov.classList.add("opened"); $(".gift-card", ov).focus({ preventScroll: true }); }, 1300);
+    } else if (e.target.closest("[data-giftclose],[data-tour]")) close();
   });
+  ov.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
 }
 function maybeWelcome() {
   if (/[?&]gift\b/.test(location.search)) return showGift();
