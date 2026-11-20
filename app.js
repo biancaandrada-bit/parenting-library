@@ -734,7 +734,8 @@ const tutVid = (k) => TUTORIAL_VIDEOS[LANG]?.[k] || TUTORIAL_VIDEOS[LANG === "ro
 function learnBtns() {
   const vids = ["short", "long"].filter(tutVid);
   return `<div class="learnrow"><button class="btn" data-tour="quick">${L("🧭 Quick tour", "🧭 Tur rapid")}</button><button class="btn ghost" data-tour="full">${L("🗺️ Full tour", "🗺️ Tur complet")}</button></div>
-    ${vids.length ? `<div class="learnrow">${vids.map((k) => `<button class="btn ghost" data-tutvid="${k}">${k === "short" ? L("▶️ Short video (~3 min)", "▶️ Video scurt (~3 min)") : L("▶️ Detailed video (~6 min)", "▶️ Video detaliat (~6 min)")}</button>`).join("")}</div>` : ""}`;
+    ${vids.length ? `<div class="learnrow">${vids.map((k) => `<button class="btn ghost" data-tutvid="${k}">${k === "short" ? L("▶️ Short video (~3 min)", "▶️ Video scurt (~3 min)") : L("▶️ Detailed video (~6 min)", "▶️ Video detaliat (~6 min)")}</button>`).join("")}</div>` : ""}
+    <div class="learnrow"><button class="btn ghost" data-gift>💌 ${L("Bianca's card", "Felicitarea de la Bianca")}</button></div>`;
 }
 function modal(html, cls = "") {
   closeModal();
@@ -959,6 +960,7 @@ document.addEventListener("click", async (e) => {
   const t = e.target;
   const tb = t.closest("[data-tour]");
   if (tb) { startTour(tb.dataset.tour); return; }
+  if (t.closest("[data-gift]")) { showGift(); return; }
   if (t.closest("[data-tutvid]")) { playTut(t.closest("[data-tutvid]").dataset.tutvid); return; }
   if (t.closest("[data-modalclose]") || t.matches("[data-modalbg]")) { closeModal(); return; }
   if (TOUR) {
