@@ -13,7 +13,10 @@ const store = {
 const prefs = () => ({ autoplay: true, ...store.get("settings", {}) });
 const setPref = (k, v) => { const s = store.get("settings", {}); v === undefined ? delete s[k] : (s[k] = v); store.set("settings", s); };
 const apiKey = () => (prefs().ai === false ? "" : prefs().key || window.LOCAL_GEMINI_KEY || "");
-const COUNTRY = () => prefs().country || "Romania";
+const KEY_URL = "https://aistudio.google.com/apikey";
+const keyLink = (t = "aistudio.google.com/apikey") => `<a href="${KEY_URL}" target="_blank" rel="noopener">${t} ↗</a>`;
+const COUNTRY = () => prefs().country || prefs().home || "Romania";
+const HOME = () => prefs().home || "Romania";
 // Online version: videos live on Cloudflare R2 (set in site-config.js); locally they come from media/video/.
 const vsrc = (p) => (window.VIDEO_BASE && p.startsWith("media/video/") ? window.VIDEO_BASE + p.slice(12) : p);
 { const ql = new URLSearchParams(location.search).get("lang"); if ((ql === "ro" || ql === "en") && !prefs().lang) setPref("lang", ql); }
@@ -268,7 +271,12 @@ function renderAnswer({ text, cand }) {
   return `<div class="answer">${html}</div><div class="med small">${L("🩺 This is not medical advice — check with your doctor.", "🩺 Acesta nu este un sfat medical — verifică cu medicul tău.")}</div>
     ${cited.length ? `<h3>${L("Sources used", "Surse folosite")}</h3><div class="list">${cited.map((it, i) => card(it, i + 1)).join("")}</div>` : ""}`;
 }
+/* anonymous usage stats (Microsoft Clarity, only on the live site) */
+function track(ev, tags) {
+  try { if (!window.clarity) return; clarity("event", ev); for (const k in tags || {}) clarity("set", k, String(tags[k]).slice(0, 200)); } catch {}
+}
 async function runAsk(q) {
+  track("ai_question", { ai_q: q });
   const box = $("#askBox");
   if (!box) return;
   box.innerHTML = `<div class="asking"><span class="spin"></span> ${L("Reading the videos for you…", "Citesc videoclipurile pentru tine…")}</div>`;
@@ -282,15 +290,32 @@ async function runAsk(q) {
 
 /* ---------- where to buy / watch ---------- */
 const enc = encodeURIComponent;
-function shopLink(kind, name, extra) {
-  const ro = COUNTRY() === "Romania", q = [name, extra].filter(Boolean).join(" ");
-  if (kind === "books") return ro ? `https://www.google.com/search?q=${enc(q + " carte cumpără")}` : `https://www.goodreads.com/search?q=${enc(q)}`;
-  if (kind === "products") return ro ? `https://www.emag.ro/search/${enc(name)}` : `https://www.google.com/search?tbm=shop&q=${enc(q)}`;
+const CNAME = { Romania: ["Romania", "România"], Moldova: ["Moldova", "Moldova"], "United Kingdom": ["United Kingdom", "Regatul Unit"], Germany: ["Germany", "Germania"],
+  Netherlands: ["Netherlands", "Țările de Jos"], Italy: ["Italy", "Italia"], Spain: ["Spain", "Spania"], France: ["France", "Franța"], "United States": ["United States", "Statele Unite"] };
+const cName = (c) => (CNAME[c] ? L(...CNAME[c]) : c);
+const countrySel = (id, cur) => `<select id="${id}">${Object.keys(CNAME).map((c) => `<option value="${c}" ${cur === c ? "selected" : ""}>${esc(cName(c))}</option>`).join("")}</select>`;
+// Per shopping country: Google Shopping region, Amazon domain (if any), and price-comparison sites. First site = default "Buy" link.
+const SHOPS = {
+  Romania: { gl: "ro", sites: [["eMAG", "https://www.emag.ro/search/"], ["Compari.ro", "https://www.compari.ro/CategorySearch.php?st="], ["Price.ro", "https://www.price.ro/index.php?action=q&text="]] },
+  Moldova: { gl: "md", sites: [["999.md", "https://999.md/ro/search?query="]] },
+  "United Kingdom": { gl: "uk", amz: "co.uk", sites: [["Amazon.co.uk", "https://www.amazon.co.uk/s?k="], ["PriceRunner", "https://www.pricerunner.com/results?q="]] },
+  Germany: { gl: "de", amz: "de", sites: [["Amazon.de", "https://www.amazon.de/s?k="], ["idealo", "https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q="], ["Geizhals", "https://geizhals.de/?fs="]] },
+  Netherlands: { gl: "nl", amz: "nl", sites: [["bol.com", "https://www.bol.com/nl/nl/s/?searchtext="], ["Amazon.nl", "https://www.amazon.nl/s?k="]] },
+  Italy: { gl: "it", amz: "it", sites: [["Amazon.it", "https://www.amazon.it/s?k="]] },
+  Spain: { gl: "es", amz: "es", sites: [["Amazon.es", "https://www.amazon.es/s?k="]] },
+  France: { gl: "fr", amz: "fr", sites: [["Amazon.fr", "https://www.amazon.fr/s?k="]] },
+  "United States": { gl: "us", amz: "com", sites: [["Amazon", "https://www.amazon.com/s?k="]] },
+};
+const shopOf = () => SHOPS[COUNTRY()] || SHOPS.Romania;
+function shopLink(kind, name, extra, q0) {
+  const S = shopOf(), q = [name, extra].filter(Boolean).join(" ");
+  if (kind === "books") return S.amz ? `https://www.amazon.${S.amz}/s?k=${enc(q)}&i=stripbooks` : `https://www.google.com/search?q=${enc(q + " carte cumpără")}`;
+  if (kind === "products") return S.sites[0][1] + enc(q0 || (extra && !name.toLowerCase().includes(extra.toLowerCase()) ? extra + " " + name : name));
   if (kind === "media") {
     if (extra === "youtube-channel" || extra === "music") return `https://www.youtube.com/results?search_query=${enc(name)}`;
     if (extra === "app" || extra === "game") return `https://play.google.com/store/search?q=${enc(name)}&c=apps`;
     if (extra === "podcast") return `https://open.spotify.com/search/${enc(name)}`;
-    return `https://www.google.com/search?q=${enc(name + (ro ? " unde vizionez" : " where to watch"))}`;
+    return `https://www.google.com/search?q=${enc(name + (LANG === "ro" ? " unde vizionez" : " where to watch"))}`;
   }
   return "";
 }
@@ -323,7 +348,7 @@ Use only offers you actually found in the search results; never guess prices. If
 }
 async function runPrices(box) {
   const { name, brand } = box.dataset;
-  box.innerHTML = `<div class="asking"><span class="spin"></span> ${L("Searching shops in", "Caut prin magazinele din")} ${esc(COUNTRY() === "Romania" ? L("Romania", "România") : COUNTRY())}…</div>`;
+  box.innerHTML = `<div class="asking"><span class="spin"></span> ${L("Searching shops in", "Caut prin magazinele din")} ${esc(cName(COUNTRY()))}…</div>`;
   try {
     const { offers, srcs } = await findPrices(name, brand);
     const domains = srcs.map((s) => (s.title || "").toLowerCase());
@@ -347,29 +372,75 @@ async function runPrices(box) {
   }
 }
 function compareLinks(name, brand) {
-  const q = [brand, name].filter(Boolean).join(" ");
-  const sites = COUNTRY() === "Romania"
-    ? [["Compari.ro", `https://www.compari.ro/CategorySearch.php?st=${enc(q)}`], ["Price.ro", `https://www.price.ro/index.php?action=q&text=${enc(q)}`],
-       ["eMAG", `https://www.emag.ro/search/${enc(q)}`], ["Google Shopping", `https://www.google.com/search?tbm=shop&gl=ro&q=${enc(q)}`]]
-    : [["Google Shopping", `https://www.google.com/search?tbm=shop&q=${enc(q)}`], ["Amazon", `https://www.amazon.com/s?k=${enc(q)}`]];
+  const q = [brand, name].filter(Boolean).join(" "), S = shopOf();
+  const sites = [...S.sites.map(([n, u]) => [n, u + enc(q)]), ["Google Shopping", `https://www.google.com/search?tbm=shop&gl=${S.gl}&q=${enc(q)}`]];
   return `<div class="row">${sites.map(([n, u]) => `<a class="btn ghost sm" href="${u}" target="_blank" rel="noopener">${n} ↗</a>`).join(" ")}</div>`;
 }
 
-/* ---------- help lines (Romania; checked Nov 2026 on findahelpline.com) ---------- */
-const HELP = [
-  ["🚨", "112", L("Emergency — ambulance, police, fire", "Urgențe — ambulanță, poliție, pompieri"), L("24/7, free", "24/7, gratuit")],
-  ["🤱", "0374 451 362", L("DepreHUB M.A.M.A — emotional support for moms (pregnancy, postpartum)", "DepreHUB M.A.M.A — sprijin emoțional pentru mame (sarcină, lăuzie)"), L("free & confidential", "gratuit și confidențial")],
-  ["💬", "0374 456 420", L("DepreHUB — emotional support for anyone", "DepreHUB — sprijin emoțional pentru oricine"), L("24/7, free", "24/7, gratuit")],
-  ["🕊️", "0800 801 200", L("TelVerde Antisuicid — if you have dark thoughts", "TelVerde Antisuicid — dacă ai gânduri negre"), L("free", "gratuit")],
-  ["🛡️", "0800 500 333", L("Domestic violence helpline", "Linia pentru victimele violenței domestice"), L("24/7, free", "24/7, gratuit")],
-  ["🧒", "116 111", L("Telefonul Copilului — for children and parents", "Telefonul Copilului — pentru copii și părinți"), L("free", "gratuit")],
-];
+/* ---------- help lines per country (checked Nov 2026: findahelpline.com and official sites) ---------- */
+const SOS = L("Emergency — ambulance, police, fire", "Urgențe — ambulanță, poliție, pompieri");
+const H24 = L("24/7, free", "24/7, gratuit"), FREE = L("free", "gratuit");
+const HELPS = {
+  Romania: { sos: "112", lines: [
+    ["🚨", "112", SOS, H24],
+    ["🤱", "0374 451 362", L("DepreHUB M.A.M.A — emotional support for moms (pregnancy, postpartum)", "DepreHUB M.A.M.A — sprijin emoțional pentru mame (sarcină, lăuzie)"), L("free & confidential", "gratuit și confidențial")],
+    ["💬", "0374 456 420", L("DepreHUB — emotional support for anyone", "DepreHUB — sprijin emoțional pentru oricine"), H24],
+    ["🕊️", "0800 801 200", L("TelVerde Antisuicid — if you have dark thoughts", "TelVerde Antisuicid — dacă ai gânduri negre"), FREE],
+    ["🛡️", "0800 500 333", L("Domestic violence helpline", "Linia pentru victimele violenței domestice"), H24],
+    ["🧒", "116 111", L("Telefonul Copilului — for children and parents", "Telefonul Copilului — pentru copii și părinți"), FREE]] },
+  Moldova: { sos: "112", lines: [
+    ["🚨", "112", SOS, H24],
+    ["🛡️", "0800 88008", L("Helpline for women and girls facing violence", "Linia pentru femei și fete care se confruntă cu violența"), L("free & confidential", "gratuit și confidențial")],
+    ["🧒", "116 111", L("Telefonul Copilului — for children and parents", "Telefonul Copilului — pentru copii și părinți"), FREE]] },
+  "United Kingdom": { sos: "999", lines: [
+    ["🚨", "999", SOS, H24],
+    ["🩺", "111", L("NHS 111 — urgent medical advice", "NHS 111 — sfat medical urgent"), H24],
+    ["🤱", "0808 1961 776", L("PANDAS — perinatal mental health support for parents", "PANDAS — sprijin pentru sănătatea mintală a părinților în sarcină și după naștere"), FREE],
+    ["💬", "116 123", L("Samaritans — whatever you're going through", "Samaritans — orice ai trece"), H24],
+    ["🛡️", "0808 2000 247", L("National Domestic Abuse Helpline", "Linia națională pentru violență domestică"), H24],
+    ["🧒", "0800 1111", L("Childline — for children and young people", "Childline — pentru copii și tineri"), FREE]] },
+  Germany: { sos: "112", lines: [
+    ["🚨", "112", SOS + L(" (police: 110)", " (poliție: 110)"), H24],
+    ["💬", "116 123", L("TelefonSeelsorge — emotional support, anonymous", "TelefonSeelsorge — sprijin emoțional, anonim"), H24],
+    ["🤰", "0800 40 40 020", L("Hilfetelefon Schwangere in Not — pregnant and struggling", "Hilfetelefon Schwangere in Not — pentru gravide în dificultate"), H24],
+    ["👪", "0800 111 0 550", L("Elterntelefon — parents' helpline", "Elterntelefon — linia pentru părinți"), FREE],
+    ["🛡️", "116 016", L("Hilfetelefon Gewalt gegen Frauen — violence against women, many languages", "Hilfetelefon Gewalt gegen Frauen — violență împotriva femeilor, în multe limbi"), H24],
+    ["🧒", "116 111", L("Nummer gegen Kummer — for children and teens", "Nummer gegen Kummer — pentru copii și adolescenți"), FREE]] },
+  Netherlands: { sos: "112", lines: [
+    ["🚨", "112", SOS, H24],
+    ["🕊️", "113", L("113 Zelfmoordpreventie — if you have dark thoughts (also free: 0800 0113)", "113 Zelfmoordpreventie — dacă ai gânduri negre (gratuit și la 0800 0113)"), "24/7"],
+    ["🛡️", "0800 2000", L("Veilig Thuis — domestic violence and child abuse", "Veilig Thuis — violență domestică și abuz asupra copiilor"), H24],
+    ["🧒", "0800 0432", L("De Kindertelefoon — for children and teens", "De Kindertelefoon — pentru copii și adolescenți"), FREE]] },
+  Italy: { sos: "112", lines: [
+    ["🚨", "112", SOS, H24],
+    ["💬", "02 2327 2327", L("Telefono Amico — emotional support", "Telefono Amico — sprijin emoțional"), ""],
+    ["🛡️", "1522", L("Violence and stalking helpline", "Linia pentru violență și hărțuire"), H24],
+    ["🧒", "19696", L("Telefono Azzurro — for children and parents", "Telefono Azzurro — pentru copii și părinți"), H24]] },
+  Spain: { sos: "112", lines: [
+    ["🚨", "112", SOS, H24],
+    ["🕊️", "024", L("Suicidal behaviour helpline", "Linia pentru prevenirea suicidului"), H24],
+    ["🛡️", "016", L("Gender violence helpline", "Linia pentru violența de gen"), H24],
+    ["🧒", "900 20 20 10", L("Fundación ANAR — for children and teens", "Fundación ANAR — pentru copii și adolescenți"), H24]] },
+  France: { sos: "112", lines: [
+    ["🚨", "112", SOS + L(" (medical: 15)", " (medical: 15)"), H24],
+    ["🕊️", "3114", L("Suicide prevention line", "Linia de prevenire a suicidului"), H24],
+    ["🛡️", "3919", L("Violences Femmes Info", "Violences Femmes Info — violență împotriva femeilor"), H24],
+    ["🧒", "119", L("Allô Enfance en Danger — children at risk", "Allô Enfance en Danger — copii în pericol"), H24]] },
+  "United States": { sos: "911", lines: [
+    ["🚨", "911", SOS, "24/7"],
+    ["🤱", "1-833-852-6262", L("National Maternal Mental Health Hotline (call or text)", "Linia națională pentru sănătatea mintală a mamelor (apel sau SMS)"), H24],
+    ["🕊️", "988", L("988 Suicide & Crisis Lifeline (call or text)", "988 — linia pentru criză și suicid (apel sau SMS)"), H24],
+    ["🛡️", "1-800-799-7233", L("National Domestic Violence Hotline", "Linia națională pentru violență domestică"), H24]] },
+};
+const helpSet = () => HELPS[HOME()] || HELPS.Romania;
 function helpPage() {
+  const H = helpSet();
   return `<h1>${L("🆘 Help lines", "🆘 Linii de ajutor")}</h1>
-    <p class="muted">${L("You are not alone. Asking for help is a strong thing to do. Numbers are for Romania.", "Nu ești singură. Să ceri ajutor e un lucru curajos. Numerele sunt pentru România.")}</p>
-    <div class="helplist">${HELP.map(([e, n, d, h]) => `<div class="helpitem ${n === "112" ? "sos" : ""}"><div><b>${e} ${esc(d)}</b><small>${esc(h)}</small></div>
-      <a class="btn ${n === "112" ? "" : "ghost"}" href="tel:${n.replace(/\s/g, "")}">📞 ${n}</a></div>`).join("")}</div>
-    <p class="muted small">${L("You can hide the help bar at the bottom of pages in More → Help lines.", "Poți ascunde bara de ajutor de la finalul paginilor din Mai mult → Linii de ajutor.")}</p>`;
+    <p class="muted">${L("You are not alone. Asking for help is a strong thing to do.", "Nu ești singură. Să ceri ajutor e un lucru curajos.")} ${L("Numbers for", "Numere pentru")} <b>${esc(cName(HOME()))}</b> · <a href="#/settings">${L("change country", "schimbă țara")}</a></p>
+    <div class="helplist">${H.lines.map(([e, n, d, h]) => `<div class="helpitem ${n === H.sos ? "sos" : ""}"><div><b>${e} ${esc(d)}</b>${h ? `<small>${esc(h)}</small>` : ""}</div>
+      <a class="btn ${n === H.sos ? "" : "ghost"}" href="tel:${n.replace(/[\s-]/g, "")}">📞 ${n}</a></div>`).join("")}</div>
+    <p class="muted small">${L("Other countries:", "Alte țări:")} <a href="https://findahelpline.com" target="_blank" rel="noopener">findahelpline.com ↗</a>.
+      ${L("You can hide the help bar at the bottom of pages in More → Help lines.", "Poți ascunde bara de ajutor de la finalul paginilor din Mai mult → Linii de ajutor.")}</p>`;
 }
 
 /* ---------- components ---------- */
@@ -385,7 +456,7 @@ function card(it, num) {
   return `<a class="card" href="#/item/${encodeURIComponent(it.id)}">
     <div class="th ${it.sensitive ? "blur" : ""}"><img loading="lazy" src="${esc(it.thumb)}" alt="">${play ? `<span class="play">${play}</span>` : ""}${num ? `<span class="num">${num}</span>` : ""}</div>
     <div><div class="t">${esc(it.title)}</div><div class="s">${esc(it.summary)}</div>
-    <div class="meta">${CAT_ICON[it.category] || ""} ${esc(catName(it.category))} · @${esc(it.author)} ${"★".repeat(it.useful)}</div>
+    <div class="meta">${CAT_ICON[it.category] || ""} ${esc(catName(it.category))} · ${at(it)} ${"★".repeat(it.useful)}</div>
     ${badges ? `<div class="meta">${badges}</div>` : ""}</div></a>`;
 }
 function mosaic(list, used) {
@@ -408,6 +479,16 @@ paged.state = {};
 /* ---------- views ---------- */
 let AFTER = [];
 let BEST_SEED = Math.random();
+/* "New videos added": items carry an `added` date (YYYY-MM-DD) from the pipeline; the original collection has none. */
+const fmtDay = (d) => new Date(d + "T12:00").toLocaleDateString(LANG === "ro" ? "ro-RO" : "en-GB", { day: "numeric", month: "short", year: "numeric" });
+function newPill() {
+  const dates = [...new Set(ITEMS.filter((i) => i.added && i.category !== "off-topic").map((i) => i.added))].sort().reverse();
+  if (!dates.length) return "";
+  const seen = store.get("newSeen", ""), unseen = dates.filter((d) => d > seen);
+  const from = unseen.length ? unseen[unseen.length - 1] : dates[0];
+  const n = ITEMS.filter((i) => i.added && i.added >= from && i.category !== "off-topic").length;
+  return `<a class="newpill ${unseen.length ? "fresh" : ""}" href="#/browse?new=${from}" data-newseen="${dates[0]}">🆕 <b>${n} ${L(n === 1 ? "new video added" : "new videos added", n === 1 ? "videoclip nou adăugat" : "videoclipuri noi adăugate")} <small>· ${fmtDay(dates[0])}</small></b><span>${L("See them →", "Vezi-le →")}</span></a>`;
+}
 function home() {
   const vis = ITEMS.filter((i) => i.category !== "off-topic");
   const stageCounts = {};
@@ -427,12 +508,23 @@ function home() {
   const best = vis.filter((i) => i.useful >= 5 && !["humor", "reflection"].includes(i.type))
     .sort((a, b) => (b.credentials ? 1 : 0) - (a.credentials ? 1 : 0) || rnd(a.id) - rnd(b.id)).slice(0, 6);
   const ex = LANG === "ro"
-    ? ["ce fac dacă bebelușul se îneacă", "cum gestionez o criză de furie în public", "ce pun în bagajul pentru maternitate", "what to do if my baby chokes"]
-    : ["what to do if my baby chokes", "how to handle a tantrum in public", "what to pack in the hospital bag", "ce să fac când copilul lovește"];
-  return `<h1>${L("Hi! 👋", "Bună! 👋")}</h1><p class="muted">${vis.length} ${L("saved videos & posts, summarised and organised.", "videoclipuri și postări salvate, rezumate și organizate.")}</p>
-    <div class="box learn" id="learnCard"><b>${L("🎬 New here? Learn the app", "🎬 Ești nouă aici? Învață aplicația")}</b>${learnBtns()}</div>
-    <div class="askcard">${L("<b>✨ Ask anything</b> in the search bar above — in English or Romanian. For example:", "<b>✨ Întreabă orice</b> în bara de căutare de sus — în română sau engleză. De exemplu:")}
-      <div class="chips">${ex.map((q) => `<a class="chip soft" href="#/browse?q=${encodeURIComponent(q)}">${esc(q)}</a>`).join("")}</div></div>
+    ? ["ce fac dacă bebelușul se îneacă", "cum gestionez o criză de furie în public", "ce pun în bagajul pentru maternitate", "idei de joacă pentru acasă", "cum adoarme bebelușul singur", "what to do if my baby chokes"]
+    : ["what to do if my baby chokes", "how to handle a tantrum in public", "what to pack in the hospital bag", "play ideas for rainy days", "how to get my baby to sleep", "ce să fac când copilul lovește"];
+  AFTER.push(() => {
+    let i = 0;
+    clearInterval(home.timer);
+    home.timer = setInterval(() => {
+      const a = $("#exRot");
+      if (!a) return clearInterval(home.timer);
+      if (TOUR) return;
+      a.classList.add("out");
+      setTimeout(() => { i = (i + 1) % ex.length; a.textContent = ex[i]; a.href = "#/browse?q=" + encodeURIComponent(ex[i]); a.classList.remove("out"); }, 350);
+    }, 3200);
+  });
+  return `<div class="hello"><h1>${L("Hi! 👋", "Bună! 👋")}</h1><span class="muted">${vis.length} ${L("videos, summarised & organised", "videoclipuri, rezumate și organizate")}</span></div>
+    ${newPill()}
+    <div class="askcard"><b>✨ ${L("Ask anything", "Întreabă orice")}</b><span class="muted">${L("e.g.", "ex.")}</span>
+      <a class="chip soft" id="exRot" href="#/browse?q=${encodeURIComponent(ex[0])}">${esc(ex[0])}</a></div>
     ${groups}
     <h2>${L("👣 By age & stage", "👣 După vârstă și etapă")}</h2><div class="chips stages">${stages}</div>
     <div class="chips"><a class="chip soft" href="#/browse?sex=boy">${L("👦 About boys", "👦 Despre băieți")}</a><a class="chip soft" href="#/browse?sex=girl">${L("👧 About girls", "👧 Despre fete")}</a>
@@ -467,15 +559,20 @@ function browse(params) {
   if (f.pcat) list = list.filter((i) => (i.mentions?.products || []).some((p) => p.pcat === f.pcat));
   if (f.sens === "0") list = list.filter((i) => !i.sensitive);
   if (!f.cat && f.hideoff !== "0" && !f.m) list = list.filter((i) => i.category !== "off-topic");
-  if (f.sort === "new") list.sort((a, b) => (b.id > a.id ? 1 : -1));
+  if (f.new) list = list.filter((i) => i.added && i.added >= f.new);
+  if (f.sort === "new" || f.new) list.sort((a, b) => (b.added || "").localeCompare(a.added || "") || (b.id > a.id ? 1 : -1));
 
   const link = (k, v) => { const p = new URLSearchParams(params); v == null || f[k] === v ? p.delete(k) : p.set(k, v); return "#/browse?" + p; };
   const chip = (k, v, label) => `<a class="chip ${f[k] === v ? "on" : ""}" href="${link(k, v)}">${esc(label)}</a>`;
   const sel = (k, opts, label) => `<label class="muted">${label} <select data-k="${k}"><option value="">${L("Any", "Oricare")}</option>${opts.map(([v, l]) =>
     `<option value="${esc(v)}" ${f[k] === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`;
-  const title = f.q ? `${L("Results for", "Rezultate pentru")} “${esc(f.q)}”` : f.tri ? `${TRI_ICON[f.tri]} ${esc(TRI[f.tri])}` : f.cat ? `${CAT_ICON[f.cat] || ""} ${esc(catName(f.cat))}`
+  const title = f.new ? `${L("🆕 New videos", "🆕 Videoclipuri noi")} <small class="muted">${L("added", "adăugate")} ${f.new === [...new Set(ITEMS.map((i) => i.added || ""))].sort().pop() ? L("on", "pe") : L("since", "din")} ${fmtDay(f.new)}</small>` : f.q ? `${L("Results for", "Rezultate pentru")} “${esc(f.q)}”` : f.tri ? `${TRI_ICON[f.tri]} ${esc(TRI[f.tri])}` : f.cat ? `${CAT_ICON[f.cat] || ""} ${esc(catName(f.cat))}`
     : f.tag ? `#${esc(tagName(f.tag))}` : f.author ? `@${esc(f.author)}` : f.pcat ? `${PCAT[f.pcat]?.[0] || "🛒"} ${esc(PCAT[f.pcat]?.[1] || f.pcat)}`
     : f.m ? `${{ books: "📚", products: "🛒", people: "👤", media: "📺", gifts: "🎁" }[f.m.split(":")[0]] || ""} ${esc(mName)}` : L("Browse", "Explorează");
+  const QL = { sex: { boy: L("👦 Boys", "👦 Băieți"), girl: L("👧 Girls", "👧 Fete") }, aud: { fathers: L("👨 Dads", "👨 Tați") }, health: { 1: L("🩺 Medical", "🩺 Medical") },
+    sens: { 0: L("🙈 No sensitive", "🙈 Fără sensibile") }, min: { 4: "★4+" }, lang: { ro: "🇷🇴 RO", en: "🇬🇧 EN" }, plat: { instagram: "Instagram", tiktok: "TikTok", facebook: "Facebook" }, sort: { new: L("Newest", "Cele mai noi") } };
+  const pillName = (k, v) => k === "cat" ? catName(v) : k === "stage" ? STAGE[v] : k === "type" ? TYPE_LABEL[v] : k === "tri" ? TRI[v] : QL[k]?.[v];
+  const pills = Object.keys(f).filter((k) => pillName(k, f[k])).map((k) => `<a class="chip on" href="${link(k, null)}" aria-label="${L("Remove filter", "Scoate filtrul")}">${esc(pillName(k, f[k]))} ✕</a>`);
   const active = Object.keys(f).filter((k) => !["sort", "inc", "hideoff", "q"].includes(k)).length;
 
   let triRow = "";
@@ -493,8 +590,8 @@ function browse(params) {
   let askBox = "";
   if (f.q) {
     if (apiKey()) { askBox = `<div id="askBox" class="askbox"></div>`; AFTER.push(() => runAsk(f.q)); }
-    else askBox = `<div class="askbox muted">${L("✨ Want a written answer with sources? Add a free Gemini key in <a href=\"#/settings\">More → AI answers</a>.",
-      "✨ Vrei un răspuns scris, cu surse? Adaugă o cheie Gemini gratuită în <a href=\"#/settings\">Mai mult → Răspunsuri AI</a>.")}</div>`;
+    else askBox = `<div class="askbox muted">${L("✨ Want a written answer with sources? Get a free Gemini key at " + keyLink() + " and paste it in <a href=\"#/settings\">More → AI answers</a>.",
+      "✨ Vrei un răspuns scris, cu surse? Ia o cheie Gemini gratuită de pe " + keyLink() + " și lipește-o în <a href=\"#/settings\">Mai mult → Răspunsuri AI</a>.")}</div>`;
   }
   let authorBar = "";
   if (f.author) {
@@ -505,26 +602,26 @@ function browse(params) {
   let shopBar = "";
   if (f.m && mObj) {
     const kind = f.m.split(":")[0], sx = kind === "books" ? mObj.author : kind === "products" ? (mObj.brand !== mName ? mObj.brand : "") : mObj.kind;
-    const s = shopLink(kind, mName, sx);
+    const s = shopLink(kind, mName, sx, mObj.q);
     const img = LIBIMG[`${kind}:${libKey(mName)}`];
     if (s) shopBar = `<div class="box shopbar">${img ? `<img src="${esc(img)}" alt="">` : ""}<div>
       <a class="btn" href="${esc(s)}" target="_blank" rel="noopener">${kind === "media" ? "▶" : "🛒"} ${esc(shopLabel(kind))} ↗</a>
       ${kind === "products" || kind === "books" ? (apiKey()
-        ? `<button class="btn ghost" data-prices>💸 ${L("Best prices in", "Cele mai bune prețuri în")} ${esc(COUNTRY() === "Romania" ? L("Romania", "România") : COUNTRY())} (AI)</button>`
-        : `<p class="muted small">${L("💸 Add a Gemini key in More → AI answers to compare prices across shops.", "💸 Adaugă o cheie Gemini în Mai mult → Răspunsuri AI ca să compari prețurile din magazine.")}</p>`) : ""}
+        ? `<button class="btn ghost" data-prices>💸 ${L("Best prices in", "Cele mai bune prețuri în")} ${esc(cName(COUNTRY()))} (AI)</button>`
+        : `<p class="muted small">${L("💸 Get a free Gemini key at ", "💸 Ia o cheie Gemini gratuită de pe ") + keyLink() + L(" and add it in <a href=\"#/settings\">More → AI answers</a> to compare prices across shops.", " și adaug-o în <a href=\"#/settings\">Mai mult → Răspunsuri AI</a> ca să compari prețurile din magazine.")}</p>`) : ""}
       <div id="priceBox" data-name="${esc(mName)}" data-brand="${esc(kind === "products" ? sx || "" : sx ? "book by " + sx : "book")}"></div></div></div>`;
   }
   return `<h1>${title}</h1>${authorBar}${shopBar}${f.cat && !f.tri ? `<p class="muted">${esc((CAT[f.cat] || "").split(":").slice(1).join(":"))}</p>` : ""}
   ${triRow}${askBox}
-  <details class="filters" ${f.q ? "" : "open"}><summary>${L("Filters", "Filtre")} ${active ? `(${active} ${L("active", "active")})` : ""} · ${list.length} ${L("items", "rezultate")}</summary>
+  <details class="filters"><summary><span>⚙️ ${L("Filters", "Filtre")}${active ? ` <b class="fcount">${active}</b>` : ""}</span><span class="muted">${list.length} ${L("items", "rezultate")}</span></summary>
     <div class="row">${sel("cat", Object.keys(CAT).map((c) => [c, catName(c)]), L("Topic", "Subiect"))}
     ${sel("stage", Object.entries(STAGE), L("Stage", "Etapă"))}
     ${sel("type", Object.entries(TYPE_LABEL), L("Type", "Tip"))}</div>
-    <div class="chips">${chip("sex", "boy", L("👦 Boys", "👦 Băieți"))}${chip("sex", "girl", L("👧 Girls", "👧 Fete"))}${chip("aud", "fathers", L("👨 Dads", "👨 Tați"))}
+    <div class="chips qchips">${chip("sex", "boy", L("👦 Boys", "👦 Băieți"))}${chip("sex", "girl", L("👧 Girls", "👧 Fete"))}${chip("aud", "fathers", L("👨 Dads", "👨 Tați"))}
       ${chip("health", "1", L("🩺 Medical topics", "🩺 Subiecte medicale"))}${chip("sens", "0", L("🙈 Hide sensitive", "🙈 Ascunde subiecte sensibile"))}${chip("min", "4", L("★4+ only", "Doar ★4+"))}${chip("lang", "ro", L("🇷🇴 Romanian", "🇷🇴 În română"))}${chip("lang", "en", L("🇬🇧 English", "🇬🇧 În engleză"))}
-      ${chip("plat", "instagram", "Instagram")}${chip("plat", "tiktok", "TikTok")}${chip("sort", "new", L("Newest first", "Cele mai noi"))}</div>
-    ${active || f.q ? `<a class="chip" href="#/browse">${L("✕ Clear all", "✕ Șterge filtrele")}</a>` : ""}
+      ${chip("plat", "instagram", "Instagram")}${chip("plat", "tiktok", "TikTok")}${chip("plat", "facebook", "Facebook")}${chip("sort", "new", L("Newest first", "Cele mai noi"))}</div>
   </details>
+  ${pills.length ? `<div class="chips fpills">${pills.join("")}${pills.length > 1 ? `<a class="chip" href="#/browse${f.q ? "?q=" + encodeURIComponent(f.q) : ""}">${L("Clear all", "Șterge tot")}</a>` : ""}</div>` : ""}
   ${f.q ? "" : collRow}
   ${f.q && apiKey() ? `<h2>${L("Matching videos", "Videoclipuri potrivite")}</h2>` : ""}
   ${paged(list, "browse:" + params)}
@@ -552,8 +649,10 @@ function player(it) {
   return `<a href="${esc(it.url)}" target="_blank" rel="noopener"><img class="vid" src="${esc(it.thumb)}" alt=""></a>`;
 }
 
-const profileUrl = (a, p) => (p === "tiktok" ? `https://www.tiktok.com/@${encodeURIComponent(a)}` : `https://www.instagram.com/${encodeURIComponent(a)}/`);
-const followBtn = (a, p) => `<a class="btn follow" href="${profileUrl(a, p)}" target="_blank" rel="noopener">${L("➕ Follow on", "➕ Urmărește pe")} ${p === "tiktok" ? "TikTok" : "Instagram"}</a>`;
+const at = (it) => (it.platform === "facebook" ? "" : "@") + esc(it.author || "");
+const PLAT = { tiktok: "TikTok", instagram: "Instagram", facebook: "Facebook" };
+const profileUrl = (a, p) => (p === "tiktok" ? `https://www.tiktok.com/@${encodeURIComponent(a)}` : p === "facebook" ? `https://www.facebook.com/search/top?q=${encodeURIComponent(a)}` : `https://www.instagram.com/${encodeURIComponent(a)}/`);
+const followBtn = (a, p) => `<a class="btn follow" href="${profileUrl(a, p)}" target="_blank" rel="noopener">${L("➕ Follow on", "➕ Urmărește pe")} ${PLAT[p] || "Instagram"}</a>`;
 
 function item(id) {
   const it = BY_ID[id];
@@ -565,6 +664,7 @@ function item(id) {
     .map((o) => [o.tags.filter((t) => it.tags.includes(t)).length * 2 + (o.category === it.category ? 1 : 0) + (o.dedupe && o.dedupe === it.dedupe ? 5 : 0), o])
     .filter((x) => x[0] >= 3).sort((a, b) => b[0] - a[0]).slice(0, 5).map((x) => x[1]);
   AFTER.push(() => {
+    setSpeed();
     const car = $(".car"), dots = $(".cardots");
     if (car && dots) car.addEventListener("scroll", () => { dots.textContent = `${Math.round(car.scrollLeft / car.clientWidth) + 1} / ${car.children.length} · ${L("swipe", "glisează")} ⟷`; }, { passive: true });
     if (!prefs().autoplay || it.sensitive) return;
@@ -572,18 +672,20 @@ function item(id) {
     if (v && v.play) v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
   });
   const lib = (kind, name) => { const k = libKey(name); return LIBIMG[`${kind}:${k}`] ? `<img src="${esc(LIBIMG[`${kind}:${k}`])}" alt="" loading="lazy">` : ""; };
-  const mention = (kind, name, extra, sx) => { const s = shopLink(kind, name, sx);
+  const mention = (kind, name, extra, sx, q) => { const s = shopLink(kind, name, sx, q);
     return `<li><a class="ment" href="#/browse?m=${kind}:${libKey(name)}">${lib(kind, name)}<span>${esc(name)}${extra ? ` <span class="muted">${extra}</span>` : ""}</span></a>${s ? `<a class="shop" href="${esc(s)}" target="_blank" rel="noopener" title="${esc(shopLabel(kind))}">${kind === "media" ? "▶" : "🛒"}<span>${kind === "media" ? L("Find", "Găsește") : L("Buy", "Cumpără")}</span></a>` : ""}</li>`; };
-  return `<div class="iwrap"><div class="pl ${it.sensitive ? "sensgate" : ""}">${player(it)}${it.sensitive ? `<button class="sensveil" id="reveal">⚠️<b>${L("Sensitive subject", "Subiect sensibil")}</b><span>${esc(it.sensitive)}</span><u>${L("Tap to show", "Atinge pentru a afișa")}</u></button>` : ""}</div><div class="info">
+  const trId = it.transcript || it.onscreen.length;
+  return `<div class="jump"><button class="chip soft" data-jump="sumBox">${L("See summary", "Vezi rezumatul")}</button>${trId ? `<button class="chip soft" data-jump="trBox">${L("See transcript", "Vezi transcrierea")}</button>` : ""}<button class="chip soft" data-jump="fbBox">${L("Give feedback", "Dă feedback")}</button></div>
+  <div class="iwrap"><div class="pl ${it.sensitive ? "sensgate" : ""}">${player(it)}<button class="plfav ${favs.includes(id) ? "on" : ""}" data-plfav aria-label="${L("Save", "Salvează")}">${favs.includes(id) ? "❤️" : "🤍"}</button>${/<video/.test(player(it)) ? `<button class="spd" data-spd aria-label="${L("Playback speed", "Viteza de redare")}">${SPEED}×</button><div class="spdhint" aria-hidden="true">2× ▸▸</div>` : ""}${it.sensitive ? `<button class="sensveil" id="reveal">⚠️<b>${L("Sensitive subject", "Subiect sensibil")}</b><span>${esc(it.sensitive)}</span><u>${L("Tap to show", "Atinge pentru a afișa")}</u></button>` : ""}</div><div class="info">
     <h1>${esc(it.title)}</h1>
-    <div class="muted creator">${avatar(it.author, it.platform) ? `<img class="av" src="${esc(avatar(it.author, it.platform))}" alt="">` : ""}<a href="#/browse?author=${encodeURIComponent(it.author)}">@${esc(it.author)}</a>${it.credentials ? ` · ${esc(it.credentials)}` : ""}</div>
+    <div class="muted creator">${avatar(it.author, it.platform) ? `<img class="av" src="${esc(avatar(it.author, it.platform))}" alt="">` : ""}<a href="#/browse?author=${encodeURIComponent(it.author)}">${at(it)}</a>${it.credentials ? ` · ${esc(it.credentials)}` : ""}</div>
     <div class="row" style="margin-top:8px"><button class="btn ghost" id="fav">${favs.includes(id) ? L("❤️ Saved", "❤️ Salvat") : L("🤍 Save", "🤍 Salvează")}</button>
       ${followBtn(it.author, it.platform)}
-      <a class="btn ghost" href="${esc(it.url)}" target="_blank" rel="noopener">${L("Source", "Sursa")}: ${it.platform === "tiktok" ? "TikTok" : "Instagram"} ↗</a></div>
+      <a class="btn ghost" href="${esc(it.url)}" target="_blank" rel="noopener">${L("Source", "Sursa")}: ${PLAT[it.platform] || "Instagram"} ↗</a></div>
     ${it.sensitive ? `<div class="box sens">⚠️ <b>${L("Sensitive subject", "Subiect sensibil")}:</b> ${esc(it.sensitive)}</div>` : ""}
     ${it.health ? `<div class="box med">🩺 <b>${L("This is not medical advice — check with your doctor.", "Acesta nu este un sfat medical — verifică cu medicul tău.")}</b>${it.caution ? `<div>${esc(it.caution)}</div>` : ""}</div>`
       : it.caution ? `<div class="box note">💡 ${esc(it.caution)}</div>` : ""}
-    <div class="box"><p style="margin:0">${esc(it.summary)}</p>
+    <div class="box" id="sumBox"><p style="margin:0">${esc(it.summary)}</p>
       ${it.key_points.length ? `<h3>${L("Key points", "Idei principale")}</h3>${list(it.key_points, (p) => `<li>${esc(p)}</li>`)}` : ""}
       ${it.scripts.length ? `<h3>${L("💬 What to say", "💬 Ce să spui")}</h3>${it.scripts.map((s) => `<div class="script">“${esc(s)}”</div>`).join("")}` : ""}</div>
     <div class="chips"><a class="chip soft" href="#/browse?cat=${it.category}">${CAT_ICON[it.category] || ""} ${esc(catName(it.category))}</a>
@@ -595,17 +697,17 @@ function item(id) {
     ${it.ill.length ? `<h2>${L("Images", "Imagini")}</h2><div class="ills">${it.ill.map((i) => `<figure><a href="${esc(i.src)}" target="_blank"><img loading="lazy" src="${esc(i.src)}" alt=""></a><figcaption>${esc(i.caption)}</figcaption></figure>`).join("")}</div>` : ""}
     ${(m.books || []).length || (m.products || []).length || (m.people || []).length || it.media.length || it.gifts.length || it.prompts.length ? `<div class="box">
       ${(m.books || []).length ? `<h3>${L("📚 Books", "📚 Cărți")}</h3><ul class="ments">${m.books.filter((b) => b.title).map((b) => mention("books", b.title, b.author ? "— " + esc(b.author) : "", b.author)).join("")}</ul>` : ""}
-      ${(m.products || []).length ? `<h3>${L("🛒 Products", "🛒 Produse")}</h3><ul class="ments">${m.products.filter((p) => p.name).map((p) => mention("products", p.name, [p.pcat ? PCAT[p.pcat]?.[0] : "", p.brand && p.brand !== p.name ? p.brand : "", p.type].filter(Boolean).map(esc).join(" · "), p.brand && p.brand !== p.name ? p.brand : "")).join("")}</ul>` : ""}
+      ${(m.products || []).length ? `<h3>${L("🛒 Products", "🛒 Produse")}</h3><ul class="ments">${m.products.filter((p) => p.name).map((p) => mention("products", p.name, [p.pcat ? PCAT[p.pcat]?.[0] : "", p.brand && p.brand !== p.name ? p.brand : "", p.type].filter(Boolean).map(esc).join(" · ") + (p.any ? ` <span class="anyb">${L("any brand · example photo", "orice marcă · poză de exemplu")}</span>` : ""), p.brand && p.brand !== p.name ? p.brand : "", p.q)).join("")}</ul>` : ""}
       ${it.media.length ? `<h3>${L("📺 Recommended media", "📺 Media recomandate")}</h3><ul class="ments">${it.media.map((x) => mention("media", x.name, [MEDIA_KIND[x.kind], x.why].filter(Boolean).map(esc).join(" · "), x.kind)).join("")}</ul>` : ""}
       ${it.gifts.length ? `<h3>${L("🎁 Gifts & keepsakes", "🎁 Cadouri și amintiri")}</h3><ul class="ments">${it.gifts.map((x) => mention("gifts", x.name, [GIFT_KIND[x.kind], x.how].filter(Boolean).map(esc).join(" · "))).join("")}</ul>` : ""}
       ${it.prompts.length ? `<h3>${L("🤖 AI prompts", "🤖 Prompturi AI")}</h3>${it.prompts.map((x) => `<div class="script">“${esc(x.prompt)}”${x.purpose ? `<div class="muted">${esc(x.purpose)}</div>` : ""}</div>`).join("")}` : ""}
       ${(m.people || []).length ? `<h3>${L("👤 Experts", "👤 Experți")}</h3><ul class="ments">${m.people.filter((p) => p.name).map((p) => mention("people", p.name, p.role ? esc(p.role) : "")).join("")}</ul>` : ""}</div>` : ""}
     <div class="chips">${it.tags.map((t) => `<a class="chip" href="#/browse?tag=${encodeURIComponent(t)}">#${esc(tagName(t))}</a>`).join("")}</div>
-    <div class="box"><h3 style="margin-top:0">${L("📝 My note", "📝 Notița mea")}</h3><textarea id="note" placeholder="${L("Write a note for yourself…", "Scrie-ți o notiță…")}">${esc(notes[id] || "")}</textarea></div>
-    ${it.transcript ? `<details class="box"><summary>${L("What they say (transcript", "Ce spun (transcriere")}${it.lang && it.lang !== "en" ? ", " + esc(it.lang.toUpperCase()) : ""})</summary><div class="pre">${esc(it.transcript)}</div></details>` : ""}
-    ${it.onscreen.length ? `<details class="box"><summary>${L("Text on screen", "Text pe ecran")}</summary><div class="pre">${esc(it.onscreen.join("\n"))}</div></details>` : ""}
+    <div class="box"><h3 style="margin-top:0">${L("📝 My note", "📝 Notița mea")}</h3><textarea id="note" data-clarity-mask="true" placeholder="${L("Write a note for yourself…", "Scrie-ți o notiță…")}">${esc(notes[id] || "")}</textarea></div>
+    ${it.transcript ? `<details class="box" id="trBox"><summary>${L("What they say (transcript", "Ce spun (transcriere")}${it.lang && it.lang !== "en" ? ", " + esc(it.lang.toUpperCase()) : ""})</summary><div class="pre">${esc(it.transcript)}</div></details>` : ""}
+    ${it.onscreen.length ? `<details class="box" ${it.transcript ? "" : `id="trBox"`}><summary>${L("Text on screen", "Text pe ecran")}</summary><div class="pre">${esc(it.onscreen.join("\n"))}</div></details>` : ""}
     ${it.caption ? `<details class="box"><summary>${L("Original caption", "Descrierea originală")}</summary><div class="pre">${esc(it.caption)}</div></details>` : ""}
-    <details class="box" ${fb.cat || fb.note ? "open" : ""}><summary>${L("🏷️ Wrong category? (feedback for organising)", "🏷️ Categorie greșită? (feedback pentru organizare)")}</summary>
+    <details class="box" id="fbBox" ${fb.cat || fb.note ? "open" : ""}><summary>${L("🏷️ Wrong category? (feedback for organising)", "🏷️ Categorie greșită? (feedback pentru organizare)")}</summary>
       <div class="row" style="margin-top:8px"><select id="fbCat"><option value="">${L("Better topic…", "Subiect mai potrivit…")}</option>${Object.keys(CAT).map((c) =>
         `<option value="${c}" ${fb.cat === c ? "selected" : ""}>${esc(catName(c))}</option>`).join("")}</select></div>
       <textarea id="fbNote" placeholder="${L("e.g. 'should be its own category: travel', 'not useful', 'duplicate of …'", "ex. „ar trebui să fie o categorie separată: călătorii”, „nu e util”, „duplicat cu …”")}">${esc(fb.note || "")}</textarea>
@@ -661,7 +763,7 @@ function library(params) {
     if (sub) rows = rows.filter((r) => r.cat === sub);
   }
   const libCard = (r) => {
-    if (tab === "prompts") return `<a class="script prompt" href="#/item/${encodeURIComponent(r.items[0].id)}">🤖 “${esc(r.name)}”${r.extra ? `<div class="muted">${esc(r.extra)} · @${esc(r.items[0].author)}</div>` : ""}</a>`;
+    if (tab === "prompts") return `<a class="script prompt" href="#/item/${encodeURIComponent(r.items[0].id)}">🤖 “${esc(r.name)}”${r.extra ? `<div class="muted">${esc(r.extra)} · ${at(r.items[0])}</div>` : ""}</a>`;
     const href = tab === "creators" ? `#/browse?author=${encodeURIComponent(r.name)}` : `#/browse?m=${tab}:${r.k}`;
     return `<a class="lcard ${tab === "creators" || tab === "people" ? "round" : ""} ${tab === "products" ? "prod" : ""}" href="${href}"><img loading="lazy" src="${esc(img(r))}" alt="">
       <b>${tab === "creators" ? "@" : ""}${esc(r.name)}</b>${r.extra ? `<small>${esc(r.extra)}</small>` : ""}<span class="cnt">${nVideos(r.items.length)}</span></a>`;
@@ -692,7 +794,7 @@ function settings() {
     : local ? L("✅ Using the key from this computer's local config file (only on this PC).", "✅ Se folosește cheia din fișierul de configurare al acestui calculator (doar pe acest PC).")
     : L("⚪ No key yet.", "⚪ Nicio cheie încă.");
   return `<h1>${L("More", "Mai mult")}</h1>
-    <div class="box learn" id="learnBox"><h3 style="margin-top:0">${L("🎓 Help & tutorials", "🎓 Ajutor și tutoriale")}</h3>${learnBtns()}</div>
+    <details class="box learn" id="learnBox"><summary><b>${L("🎓 Help & tutorials", "🎓 Ajutor și tutoriale")}</b></summary>${learnBtns()}</details>
     <div class="box"><h3 style="margin-top:0">🌍 ${L("Language", "Limba")}</h3>
       <div class="langpick"><button class="btn ${LANG === "en" ? "on" : "ghost"}" data-lang="en">🇬🇧 English</button><button class="btn ${LANG === "ro" ? "on" : "ghost"}" data-lang="ro">🇷🇴 Română</button></div>
       <p class="muted">${L("Summaries and tips are translated automatically. Transcripts and original captions stay in the video's language.",
@@ -700,28 +802,40 @@ function settings() {
     <div class="box"><h3 style="margin-top:0">${L("▶️ Playback", "▶️ Redare")}</h3>
       <label class="toggle"><input type="checkbox" id="autoplay" ${p.autoplay ? "checked" : ""}> ${L("Autoplay videos when I open them", "Pornește automat videoclipurile când le deschid")}</label></div>
     <div class="box"><h3 style="margin-top:0">${L("✨ AI answers", "✨ Răspunsuri AI")}</h3>
-      <p class="muted">${L("Type a question in the search bar and get a short answer written only from these videos, with links to the sources. Needs a free Google Gemini key (aistudio.google.com → “Get API key”). It is stored only on this device.",
-        "Scrie o întrebare în bara de căutare și primești un răspuns scurt, scris doar din aceste videoclipuri, cu linkuri către surse. Ai nevoie de o cheie Google Gemini gratuită (aistudio.google.com → „Get API key”). Se salvează doar pe acest dispozitiv.")}</p>
+      <p class="muted">${L("Type a question in the search bar and get a short answer written only from these videos, with links to the sources. Needs a free Google Gemini key. It is stored only on this device.",
+        "Scrie o întrebare în bara de căutare și primești un răspuns scurt, scris doar din aceste videoclipuri, cu linkuri către surse. Ai nevoie de o cheie Google Gemini gratuită. Se salvează doar pe acest dispozitiv.")}</p>
+      <p><a class="btn ghost" href="${KEY_URL}" target="_blank" rel="noopener">🔑 ${L("Get a free key", "Ia o cheie gratuită")}: aistudio.google.com/apikey ↗</a></p>
       <p class="keystate">${keyState}</p>
       <label class="toggle"><input type="checkbox" id="aiOn" ${aiOn ? "checked" : ""}> ${L("Use AI answers and price search", "Folosește răspunsurile AI și căutarea de prețuri")}</label>
-      <div class="row" style="margin-top:8px"><input type="password" id="keyIn" placeholder="${own ? L("Paste a new key to replace it", "Lipește o cheie nouă ca s-o înlocuiești") : L("Paste Gemini API key", "Lipește cheia Gemini API")}" autocomplete="off" style="flex:1">
+      <div class="row" style="margin-top:8px"><input type="password" id="keyIn" data-clarity-mask="true" placeholder="${own ? L("Paste a new key to replace it", "Lipește o cheie nouă ca s-o înlocuiești") : L("Paste Gemini API key", "Lipește cheia Gemini API")}" autocomplete="off" style="flex:1">
       <button class="btn" id="keySave">${L("Save & test", "Salvează și testează")}</button></div>
       <div id="keyMsg" class="keymsg"></div>
       ${own ? `<button class="btn ghost danger" id="keyDel">🗑️ ${L("Remove my key from this device", "Șterge cheia mea de pe acest dispozitiv")}</button>` : ""}</div>
     <div class="box"><h3 style="margin-top:0">🛒 ${L("Shopping country", "Țara pentru cumpărături")}</h3>
-      <select id="country">${["Romania", "Moldova", "United Kingdom", "Germany", "Italy", "Spain", "France", "United States"].map((c) => `<option ${COUNTRY() === c ? "selected" : ""}>${c}</option>`).join("")}</select>
-      <p class="muted small">${L("Used for “Buy” links and AI price search.", "Folosită pentru linkurile „Cumpără” și căutarea de prețuri cu AI.")}</p></div>
+      ${countrySel("country", COUNTRY())}
+      <p class="muted small">${L("Used for “Buy” links, price comparison sites and AI price search.", "Folosită pentru linkurile „Cumpără”, site-urile de comparat prețuri și căutarea de prețuri cu AI.")}</p></div>
     <div class="box"><h3 style="margin-top:0">🆘 ${L("Help lines", "Linii de ajutor")}</h3>
+      <label class="muted">${L("Country you live in (emergency number and help lines)", "Țara în care locuiești (numărul de urgență și liniile de ajutor)")}</label>
+      <div style="margin:6px 0 10px">${countrySel("homeCountry", HOME())}</div>
       <label class="toggle"><input type="checkbox" id="helpOn" ${p.help !== false ? "checked" : ""}> ${L("Show the help bar at the bottom of every page", "Arată bara de ajutor la finalul fiecărei pagini")}</label>
       <p><a href="#/help">${L("See all help lines →", "Vezi toate liniile de ajutor →")}</a></p></div>
     <div class="box" id="backupBox"><h3 style="margin-top:0">💾 ${L("Backup", "Copie de siguranță")}</h3>
-      <p class="muted">${L(`Your saved videos (${store.get("favs", []).length}), notes (${Object.keys(store.get("notes", {})).length}) and settings live only in this browser. Save a copy to move them to another phone, or to get them back if the browser data is cleared.`,
-        `Videoclipurile salvate (${store.get("favs", []).length}), notițele (${Object.keys(store.get("notes", {})).length}) și setările stau doar în acest browser. Salvează o copie ca să le muți pe alt telefon sau să le recuperezi dacă se șterg datele browserului.`)}</p>
+      <p class="muted">${L(`Your saved videos (${store.get("favs", []).length}), notes (${Object.keys(store.get("notes", {})).length}) and settings live only in this browser. App updates never delete them. You only need a copy in cases like these:`,
+        `Videoclipurile salvate (${store.get("favs", []).length}), notițele (${Object.keys(store.get("notes", {})).length}) și setările stau doar în acest browser. Actualizările aplicației nu le șterg niciodată. Ai nevoie de o copie doar în cazuri ca acestea:`)}</p>
+      <ul class="bkcases">
+        <li>📱 <b>${L("New phone", "Telefon nou")}</b> ${L("or switching to another browser", "sau trecerea pe alt browser")}</li>
+        <li>🧹 <b>${L("Clearing browser data", "Ștergerea datelor din browser")}</b> ${L("(history, cookies, “free up space” apps)", "(istoric, cookie-uri, aplicații de „eliberat spațiu”)")}</li>
+        <li>🍏 <b>${L("iPhone, not added to the home screen", "iPhone, fără scurtătură pe ecran")}</b> ${L("— Safari may delete it after ~7 days without opening the app", "— Safari o poate șterge după ~7 zile în care nu deschizi aplicația")}</li>
+        <li>🕶️ <b>${L("Private / incognito tabs", "File private / incognito")}</b> ${L("— everything is lost when you close them", "— totul se pierde când le închizi")}</li>
+      </ul>
       ${own ? `<label class="toggle"><input type="checkbox" id="bkKey"> ${L("Include my AI key (keep the file private)", "Include și cheia AI (păstrează fișierul doar pentru tine)")}</label>` : ""}
       <div class="row" style="margin-top:8px"><button class="btn" id="bkSave">⬇️ ${L("Save a copy", "Salvează o copie")}</button>
       <button class="btn ghost" id="bkLoad">⬆️ ${L("Restore from a copy", "Restaurează dintr-o copie")}</button>
       <input type="file" id="bkFile" accept=".json,application/json" hidden></div>
       <div id="bkMsg" class="keymsg"></div></div>
+    <div class="box beta"><h3 style="margin-top:0">🧪 ${L("You're a beta tester", "Ești beta tester")}</h3>
+      <p class="muted small">${L("Thank you for trying the app! To improve it for you, it records anonymous usage (which pages and buttons are used, searches) with Microsoft Clarity. Your notes, saved videos and AI key are never sent.",
+        "Mulțumesc că testezi aplicația! Ca s-o fac mai bună pentru tine, înregistrează anonim cum e folosită (ce pagini și butoane, căutările) cu Microsoft Clarity. Notițele, videoclipurile salvate și cheia AI nu sunt trimise niciodată.")}</p></div>
     <div class="box"><h3 style="margin-top:0">${L("🏷️ Category feedback", "🏷️ Feedback categorii")}</h3><p class="muted">${n} ${L("items with feedback on this device.", "elemente cu feedback pe acest dispozitiv.")}</p>
       <button class="btn" id="exportFb" ${n ? "" : "disabled"}>${L("Copy feedback", "Copiază feedback-ul")}</button>
       <button class="btn ghost" id="clearFb" ${n ? "" : "disabled"}>${L("Clear", "Șterge")}</button></div>
@@ -730,12 +844,13 @@ function settings() {
 }
 
 /* ---------- guided tour & tutorial videos ---------- */
+const TUTORIAL_CHAPTERS = {"en": {"short": [[0, "Welcome"], [30, "Getting around"], [43, "With or without AI"], [63, "Search anything"], [112, "A video page"], [130, "The Library"], [152, "On your home screen"]], "long": [[0, "Welcome"], [24, "Learn the app"], [35, "Getting around"], [48, "With or without AI"], [62, "Your free AI key"], [91, "Search anything"], [115, "AI answers"], [131, "The Home page"], [149, "Topics & filters"], [202, "A video page"], [233, "The Library"], [259, "Prices"], [277, "Help & settings"], [300, "On your home screen"]]}, "ro": {"short": [[0, "Bun venit"], [35, "Cum te orientezi"], [51, "Cu sau fără AI"], [78, "Caută orice"], [108, "Răspunsuri AI"], [128, "Teme și filtre"], [140, "Pagina unui video"], [164, "Biblioteca"], [188, "Pe ecranul telefonului"]], "long": [[0, "Bun venit"], [28, "Învață aplicația"], [41, "Cum te orientezi"], [57, "Cu sau fără AI"], [75, "Cheia ta AI gratuită"], [113, "Caută orice"], [143, "Răspunsuri AI"], [164, "Pagina Acasă"], [186, "Teme și filtre"], [249, "Pagina unui video"], [288, "Biblioteca"], [318, "Prețuri"], [339, "Ajutor și setări"], [368, "Pe ecranul telefonului"]]}};
 const tutVid = (k) => TUTORIAL_VIDEOS[LANG]?.[k] || TUTORIAL_VIDEOS[LANG === "ro" ? "en" : "ro"]?.[k] || "";
-function learnBtns() {
+function learnBtns(gift = true) {
   const vids = ["short", "long"].filter(tutVid);
   return `<div class="learnrow"><button class="btn" data-tour="quick">${L("🧭 Quick tour", "🧭 Tur rapid")}</button><button class="btn ghost" data-tour="full">${L("🗺️ Full tour", "🗺️ Tur complet")}</button></div>
     ${vids.length ? `<div class="learnrow">${vids.map((k) => `<button class="btn ghost" data-tutvid="${k}">${k === "short" ? L("▶️ Short video (~3 min)", "▶️ Video scurt (~3 min)") : L("▶️ Detailed video (~6 min)", "▶️ Video detaliat (~6 min)")}</button>`).join("")}</div>` : ""}
-    <div class="learnrow"><button class="btn ghost" data-gift>💌 ${L("Bianca's card", "Felicitarea de la Bianca")}</button></div>`;
+    ${gift ? `<div class="learnrow"><button class="btn ghost" data-gift>💌 ${L("Bianca's card", "Felicitarea de la Bianca")}</button></div>` : ""}`;
 }
 function modal(html, cls = "") {
   closeModal();
@@ -743,13 +858,23 @@ function modal(html, cls = "") {
     <button class="modal-x" data-modalclose aria-label="${L("Close", "Închide")}">✕</button>${html}</div></div>`);
 }
 function closeModal() { const m = $(".modal"); if (m) { m.remove(); store.set("tourSeen", 1); } }
-function playTut(k) {
+function playTut(k, auto = true) {
+  if (!TOUR) track("tutorial_video_" + k);
   const id = encodeURIComponent(tutVid(k));
   if (!id) return;
   document.querySelectorAll("video,audio").forEach((m) => m.pause());
-  modal(`<div class="vwrap"><iframe src="https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&cc_load_policy=1" title="${L("Tutorial video", "Video tutorial")}"
+  const lang = TUTORIAL_VIDEOS[LANG]?.[k] ? LANG : LANG === "ro" ? "en" : "ro", ch = TUTORIAL_CHAPTERS[lang]?.[k] || [];
+  const ts = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  modal(`<div class="vwrap"><iframe id="tutFrame" src="https://www.youtube-nocookie.com/embed/${id}?autoplay=${auto ? 1 : 0}&rel=0&cc_load_policy=1&enablejsapi=1" title="${L("Tutorial video", "Video tutorial")}"
     allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div>
+    ${ch.length ? `<div class="tutch"><b>${L("⏱️ Jump to", "⏱️ Sari la")}</b>${ch.map(([s, n]) => `<button class="chip" data-seek="${s}"><span>${ts(s)}</span> ${esc(n)}</button>`).join("")}</div>` : ""}
     <a class="small" href="https://youtu.be/${id}" target="_blank" rel="noopener">${L("Open on YouTube ↗", "Deschide pe YouTube ↗")}</a>`, "vidcard");
+}
+function tutSeek(s) {
+  const w = $("#tutFrame")?.contentWindow;
+  if (!w) return;
+  const cmd = (func, args = []) => w.postMessage(JSON.stringify({ event: "command", func, args }), "*");
+  cmd("seekTo", [s, true]); cmd("playVideo");
 }
 const GIFT_TEXT = {
   en: ["Hi 💛",
@@ -830,29 +955,36 @@ const TOUR_STEPS = [
       + " " + (apiKey() ? L("You'll also get a short AI answer with sources.", "Primești și un răspuns scurt de la AI, cu surse.")
       : L("Want written answers too? Add a free AI key in More.", "Vrei și răspunsuri scrise? Adaugă o cheie AI gratuită în Mai mult.")) },
   { q: 1, r: "#/", s: ".askcard", t: L("💡 Not sure what to ask?", "💡 Nu știi ce să întrebi?"),
-    x: L("Tap one of these example questions to see how searching works.", "Atinge una dintre aceste întrebări-exemplu ca să vezi cum funcționează căutarea.") },
+    x: L("Example questions change here every few seconds. Tap one to see how searching works.", "Aici apar pe rând întrebări-exemplu. Atinge una ca să vezi cum funcționează căutarea.") },
   { r: "#/", s: "#view .hscroll", t: L("📂 Topics", "📂 Subiecte"),
     x: L("Videos are grouped by topic. Swipe sideways to see more and tap a topic to open it.", "Videoclipurile sunt grupate pe subiecte. Glisează în lateral ca să vezi mai multe și atinge un subiect ca să-l deschizi.") },
   { r: "#/", s: ".chips.stages", t: L("👣 By age & stage", "👣 După vârstă și etapă"),
     x: L("Pick your child's age, from pregnancy to the teen years, to see only what fits right now.", "Alege vârsta copilului, de la sarcină până la adolescență, ca să vezi doar ce ți se potrivește acum.") },
   { q: 1, s: ".tabs", t: L("🧭 Main menu", "🧭 Meniul principal"),
     x: L("These buttons are always at the bottom: Home, Browse, Library, Saved and More.", "Aceste butoane sunt mereu jos: Acasă, Explorează, Bibliotecă, Salvate și Mai mult.") },
-  { r: "#/browse", s: ".filters .row", t: L("🗂️ Filters", "🗂️ Filtre"),
+  { r: "#/browse", s: () => { const d = $(".filters"); if (d) d.open = true; return $(".filters .row"); }, t: L("🗂️ Filters", "🗂️ Filtre"),
     x: L("Topic = what it's about. Stage = your child's age. Type = the kind of video (advice, what to say, demo…). Use one or combine them.",
       "Subiect = despre ce e vorba. Etapă = vârsta copilului. Tip = felul videoclipului (sfaturi, ce să spui, demonstrație…). Folosește unul sau combină-le.") },
-  { r: "#/browse", s: ".filters .chips", t: L("✨ Quick filters", "✨ Filtre rapide"),
+  { r: "#/browse", s: () => { const d = $(".filters"); if (d) d.open = true; return $(".filters .qchips"); }, t: L("✨ Quick filters", "✨ Filtre rapide"),
     x: L("One tap: boys or girls, dads, medical topics, hide sensitive subjects, only the best (★4+), language, platform or newest first. Tap again to turn it off.",
       "O singură atingere: băieți sau fete, tați, subiecte medicale, ascunde subiectele sensibile, doar cele mai bune (★4+), limbă, platformă sau cele mai noi. Atinge din nou ca să-l oprești.") },
-  { r: tourItem, s: () => [...document.querySelectorAll(".info > .box")].find((b) => b.querySelector(":scope > p")), t: L("📝 The summary", "📝 Rezumatul"),
+  { q: 1, r: tourItem, s: ".pl", t: L("▶️ Watch it right here", "▶️ Privește direct aici"),
+    x: L("Videos play inside the app, no Instagram or TikTok account needed. Hold the right side of the video to play it at 2×, or tap the 1× button for 1.5× or 2×.",
+      "Videoclipurile pornesc chiar în aplicație, fără cont de Instagram sau TikTok. Ține apăsat pe partea dreaptă a videoclipului ca să meargă de 2 ori mai repede, sau atinge butonul 1× pentru 1,5× sau 2×.") },
+  { r: tourItem, s: ".jump", t: L("⚡ Jump to what you need", "⚡ Sari direct unde vrei"),
+    x: L("These buttons take you straight to the summary, the transcript, or the feedback box.", "Aceste butoane te duc direct la rezumat, la transcriere sau la feedback.") },
+  { r: tourItem, s: "#sumBox", t: L("📝 The summary", "📝 Rezumatul"),
     x: L("Every video comes with a short summary, the key points and often exactly what to say to your child.", "Fiecare videoclip are un rezumat scurt, ideile principale și, de multe ori, exact ce să-i spui copilului.") },
+  { q: 1, r: tourItem, s: "[data-plfav]", t: L("❤️ Save it from the video", "❤️ Salvează direct din video"),
+    x: L("Tap the heart on the video to save it while you watch. Tap again to remove it.", "Atinge inima de pe video ca să-l salvezi în timp ce îl privești. Atinge din nou ca să-l scoți.") },
   { q: 1, r: tourItem, s: "#fav", t: L("❤️ Save it", "❤️ Salvează"),
-    x: (full) => L("Tap Save to keep a video. You'll find it later in the Saved tab.", "Atinge Salvează ca să păstrezi un videoclip. Îl găsești apoi în fila Salvate.")
+    x: (full) => L("The Save button under the video does the same. You'll find all saved videos in the Saved tab.", "Butonul Salvează de sub video face același lucru. Toate videoclipurile salvate le găsești în fila Salvate.")
       + (full ? " " + L("Source opens the original post on TikTok or Instagram.", "Sursa deschide postarea originală pe TikTok sau Instagram.") : "") },
   { r: tourItem, s: () => $(".shop")?.closest(".ments") || $(".ments"), t: L("🛒 Books & products", "🛒 Cărți și produse"),
     x: L("Things mentioned in the video are listed here. Tap 🛒 Buy to find them in shops in your country.", "Aici apar lucrurile menționate în videoclip. Atinge 🛒 Cumpără ca să le găsești în magazinele din țara ta.") },
   { r: tourItem, s: "#note", t: L("✏️ My note", "✏️ Notița mea"),
     x: L("Write a private note for yourself. It's saved automatically on this device.", "Scrie-ți o notiță personală. Se salvează automat pe acest dispozitiv.") },
-  { r: tourItem, s: ".info details.box > summary", t: L("💬 What they say", "💬 Ce spun"),
+  { r: tourItem, s: "#trBox > summary", t: L("💬 What they say", "💬 Ce spun"),
     x: L("Tap here to read the full transcript. Handy when you can't turn the sound on.", "Atinge aici ca să citești transcrierea completă. Utilă când nu poți porni sunetul.") },
   { q: 1, r: "#/library", s: ".tabs4", t: L("📚 Library", "📚 Bibliotecă"),
     x: L("All the books, products, shows, gifts, AI prompts, experts and creators from the videos, in one place. Swipe to pick a tab.",
@@ -860,14 +992,20 @@ const TOUR_STEPS = [
   { r: "#/saved", s: '.tabs a[data-tab="saved"]', t: L("❤️ Saved", "❤️ Salvate"),
     x: L("Everything you save and every note you write ends up here.", "Tot ce salvezi și toate notițele tale ajung aici.") },
   { q: 1, s: "#langBtn", t: L("🌍 Language", "🌍 Limba"),
-    x: L("Switch the whole app between English and Romanian with one tap.", "Schimbă toată aplicația între română și engleză cu o singură atingere.") },
-  { r: "#/settings", s: () => $("#keyIn")?.closest(".row"), t: L("✨ AI answers (optional)", "✨ Răspunsuri AI (opțional)"),
-    x: L("Paste a free Google Gemini key here (aistudio.google.com → “Get API key”) to get written answers with sources. It stays only on this device.",
-      "Lipește aici o cheie Google Gemini gratuită (aistudio.google.com → „Get API key”) ca să primești răspunsuri scrise, cu surse. Rămâne doar pe acest dispozitiv.") },
+    x: L("Switch the whole app between English (EN) and Romanian (RO) with one tap.", "Schimbă toată aplicația între engleză (EN) și română (RO) cu o singură atingere.") },
+  { q: 1, s: "#tutBtn", t: L("🎓 Tutorials", "🎓 Tutoriale"),
+    x: L("Tours and tutorial videos are always here, if you want to see something again.", "Tururile și videoclipurile tutorial sunt mereu aici, dacă vrei să revezi ceva.") },
+  { q: 1, m: 1, s: () => { if (!$(".vidcard")) playTut("short", false); return $(".vidcard"); }, t: L("▶️ Tutorial videos, right in the app", "▶️ Videoclipuri tutorial, direct în aplicație"),
+    x: L("The tutorial videos play right here. Tap a time stamp under the video to jump straight to the part you need.",
+      "Videoclipurile tutorial pornesc chiar aici. Atinge un moment de sub video ca să sari direct la partea care te interesează.") },
+  { q: 1, r: "#/settings", s: () => $("#keyIn")?.closest(".box"), t: L("✨ AI answers (optional)", "✨ Răspunsuri AI (opțional)"),
+    x: () => L("Get a free Google Gemini key at " + keyLink() + ", tap Create API key, copy it and paste it here. Then you get written answers with sources. It stays only on this device.",
+      "Ia o cheie Google Gemini gratuită de pe " + keyLink() + ", apasă Create API key, copiaz-o și lipește-o aici. Apoi primești răspunsuri scrise, cu surse. Rămâne doar pe acest dispozitiv.") },
   { r: "#/settings", s: boxOf("#country"), t: L("🛒 Shopping country", "🛒 Țara pentru cumpărături"),
-    x: L("Choose your country so Buy links and prices point to shops near you.", "Alege țara ta, ca linkurile „Cumpără” și prețurile să ducă la magazine de lângă tine.") },
+    x: L("Choose where you shop, so Buy links and prices point to shops near you.", "Alege de unde cumperi, ca linkurile „Cumpără” și prețurile să ducă la magazine de lângă tine.") },
   { r: "#/settings", s: boxOf("#helpOn"), t: L("🆘 Help lines", "🆘 Linii de ajutor"),
-    x: L("Turn on or off the bar with the emergency number and support lines for moms.", "Pornește sau oprește bara cu numărul de urgență și liniile de sprijin pentru mame.") },
+    x: L("Pick the country you live in for the right emergency number and help lines. If your toddler plays with your phone, you can turn off the emergency bar here so they can't call by accident.",
+      "Alege țara în care locuiești, pentru numărul de urgență și liniile de ajutor potrivite. Dacă cel mic se joacă pe telefonul tău, poți opri aici bara de urgență, ca să nu sune din greșeală.") },
   { r: "#/settings", s: boxOf("#autoplay"), t: L("▶️ Autoplay", "▶️ Pornire automată"),
     x: L("Choose whether videos start playing as soon as you open them.", "Alege dacă videoclipurile pornesc singure când le deschizi.") },
   { r: "#/settings", s: boxOf("#exportFb"), t: L("🏷️ Feedback", "🏷️ Feedback"),
@@ -876,9 +1014,12 @@ const TOUR_STEPS = [
   { q: 1, r: "#/settings", s: boxOf("#bkSave"), t: L("💾 Keep a backup", "💾 Păstrează o copie"),
     x: L("Your saved videos, notes and settings live only in this browser. Save a copy now and then, and restore it on a new phone or if the browser data is cleared.",
       "Videoclipurile salvate, notițele și setările stau doar în acest browser. Salvează din când în când o copie și restaureaz-o pe un telefon nou sau dacă se șterg datele browserului.") },
+  { q: 1, t: L("📲 Add it to your home screen", "📲 Pune-o pe ecranul telefonului"),
+    x: L("So it opens like an app, with one tap:<br><b>iPhone (Safari):</b> Share ⬆️ → Add to Home Screen.<br><b>Android (Chrome):</b> ⋮ → Add to home screen → Install / Create shortcut → <b>Create shortcut</b>.<br><b>Computer (Chrome):</b> ⋮ → Cast, save and share → Create shortcut (or Ctrl + D to bookmark it).",
+      "Ca să se deschidă ca o aplicație, dintr-o atingere:<br><b>iPhone (Safari):</b> Partajare ⬆️ → Adaugă pe ecranul principal.<br><b>Android (Chrome):</b> ⋮ → Adaugă pe ecranul de pornire → Instalează / Creează o comandă rapidă → <b>Creează o comandă rapidă</b>.<br><b>Calculator (Chrome):</b> ⋮ → Proiectează, salvează și trimite → Creează o comandă rapidă (sau Ctrl + D ca s-o salvezi).") },
   { q: 1, s: ".helpbar", t: L("🆘 Help is always close", "🆘 Ajutorul e mereu aproape"),
-    x: L("At the bottom of every page: the emergency number and help lines for moms. You can restart this tour anytime from Home or More.",
-      "La finalul fiecărei pagini: numărul de urgență și linii de ajutor pentru mame. Poți reporni turul oricând din Acasă sau Mai mult.") },
+    x: L("At the bottom of every page: the emergency number and help lines. Living somewhere else? Change the country in More → Help lines. You can restart this tour anytime from 🎓 Tutorials.",
+      "La finalul fiecărei pagini: numărul de urgență și liniile de ajutor. Locuiești în altă țară? Schimb-o din Mai mult → Linii de ajutor. Poți reporni turul oricând din 🎓 Tutoriale.") },
 ];
 let TOUR = null;
 const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
@@ -890,22 +1031,24 @@ function startTour(kind) {
   el.innerHTML = `<div class="tour-ring"></div><div class="tour-card" role="dialog" aria-modal="true" aria-live="polite"></div>`;
   document.body.append(el);
   TOUR = { full, el, steps: TOUR_STEPS.filter((s) => full || s.q), i: 0, n: 0, target: null };
+  track("tour_start_" + (full ? "full" : "quick"));
   tourGo(0);
 }
 async function tourGo(i) {
   const T = TOUR;
   if (!T || i < 0) return;
-  if (i >= T.steps.length) return endTour();
+  if (i >= T.steps.length) { track("tour_finished_" + (T.full ? "full" : "quick")); return endTour(); }
   const st = T.steps[i], n = ++T.n;
   T.i = i; T.target = null; T.el.classList.add("busy");
+  if (!st.m && $(".modal")) $(".modal").remove();
   const r = typeof st.r === "function" ? st.r() : st.r;
   if (r && (location.hash || "#/") !== r) {
     location.hash = r;
     await new Promise((ok) => { addEventListener("hashchange", () => setTimeout(ok), { once: true }); setTimeout(ok, 600); });
   }
-  const find = () => { const e = typeof st.s === "function" ? st.s() : $(st.s); return e && e.getClientRects().length ? e : null; };
+  const find = () => { if (!st.s) return null; const e = typeof st.s === "function" ? st.s() : $(st.s); return e && e.getClientRects().length ? e : null; };
   let el = find();
-  for (let w = 0; !el && w < 25; w++) { await sleep(100); el = find(); }
+  for (let w = 0; st.s && !el && w < 25; w++) { await sleep(100); el = find(); }
   if (T !== TOUR || n !== T.n) return;
   T.target = el;
   const last = i === T.steps.length - 1, c = $(".tour-card", T.el);
@@ -939,14 +1082,43 @@ function tourPlace() {
 }
 function endTour() {
   if (!TOUR) return;
-  TOUR.el.remove(); TOUR = null;
+  if (TOUR.i < TOUR.steps.length - 1) track("tour_skipped", { tour_step: TOUR.i + 1 });
+  TOUR.el.remove(); TOUR = null; $(".modal")?.remove();
   for (const k in SCROLL) delete SCROLL[k];
   (location.hash || "#/") === "#/" ? scrollTo(0, 0) : (location.hash = "#/");
 }
 addEventListener("resize", tourPlace);
 addEventListener("scroll", tourPlace, { passive: true });
 // No sound behind the tour: pause any video that starts (e.g. autoplay on the item page).
-document.addEventListener("play", (e) => { if (TOUR) e.target.pause(); }, true);
+document.addEventListener("play", (e) => { if (!TOUR && e.target.closest?.(".pl")) track("video_play"); if (TOUR) e.target.pause(); else if (e.target.closest?.(".pl") && !HOLD) e.target.playbackRate = SPEED; }, true);
+/* playback speed: 1× → 1.5× → 2× button, and hold the right side of a video for 2× */
+let SPEED = 1, HOLD = null;
+function setSpeed() {
+  document.querySelectorAll(".pl video").forEach((v) => { v.defaultPlaybackRate = v.playbackRate = SPEED; });
+  document.querySelectorAll("[data-spd]").forEach((b) => { b.textContent = SPEED + "×"; b.classList.toggle("on", SPEED !== 1); });
+}
+document.addEventListener("pointerdown", (e) => {
+  const v = e.target.closest?.(".pl video");
+  if (!v || TOUR || e.button > 0) return;
+  const r = v.getBoundingClientRect();
+  if (e.clientX < r.left + r.width * 0.6 || e.clientY > r.bottom - 56) return;
+  const h = HOLD = { v, used: false, timer: setTimeout(() => {
+    h.used = true; v.playbackRate = 2; if (v.paused) v.play().catch(() => {});
+    v.closest(".pl").classList.add("fast");
+  }, 300) };
+}, true);
+const endHold = () => {
+  if (!HOLD) return;
+  const h = HOLD; HOLD = null; clearTimeout(h.timer);
+  if (h.used) {
+    h.v.playbackRate = SPEED; h.v.closest(".pl")?.classList.remove("fast");
+    const stop = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
+    document.addEventListener("click", stop, { capture: true, once: true });
+    setTimeout(() => document.removeEventListener("click", stop, true), 400);
+  }
+};
+["pointerup", "pointercancel"].forEach((n) => document.addEventListener(n, endHold, true));
+document.addEventListener("contextmenu", (e) => { if (HOLD || e.target.closest?.(".pl video")) e.preventDefault(); }, true);
 addEventListener("keydown", (e) => {
   if (TOUR) {
     if (e.key === "Escape") endTour();
@@ -964,6 +1136,8 @@ document.addEventListener("click", async (e) => {
   if (tb) { startTour(tb.dataset.tour); return; }
   if (t.closest("[data-gift]")) { showGift(); return; }
   if (t.closest("[data-tutvid]")) { playTut(t.closest("[data-tutvid]").dataset.tutvid); return; }
+  if (t.closest("[data-seek]") && !TOUR) { tutSeek(+t.closest("[data-seek]").dataset.seek); return; }
+  if (t.closest("#tutBtn") && !TOUR) { modal(`<h2>${L("🎓 Tutorials", "🎓 Tutoriale")}</h2><p class="muted">${L("Pick a guided tour of the app or watch a tutorial video.", "Alege un tur ghidat al aplicației sau privește un video tutorial.")}</p>${learnBtns(false)}`); return; }
   if (t.closest("[data-modalclose]") || t.matches("[data-modalbg]")) { closeModal(); return; }
   if (TOUR) {
     if (t.closest("[data-tournext]")) tourGo(TOUR.i + 1);
@@ -976,16 +1150,24 @@ document.addEventListener("click", async (e) => {
   if (t.closest("[data-shuffle]")) { e.preventDefault(); BEST_SEED = Math.random(); route(true); return; }
   if (t.closest("[data-ask]")) { runAsk(t.closest("[data-ask]").dataset.ask); return; }
   if (t.closest("[data-car]")) { const c = $(".car"); c.scrollBy({ left: c.clientWidth * +t.closest("[data-car]").dataset.car, behavior: "smooth" }); return; }
+  if (t.closest("[data-newseen]")) store.set("newSeen", t.closest("[data-newseen]").dataset.newseen);
+  if (t.closest(".reminder")) { t.closest(".reminder").classList.toggle("open"); return; }
+  const jb = t.closest("[data-jump]");
+  if (jb) { const d = document.getElementById(jb.dataset.jump); if (d) { if (d.tagName === "DETAILS") d.open = true; d.scrollIntoView({ behavior: "smooth", block: "start" }); } return; }
+  if (t.closest("[data-spd]")) { SPEED = SPEED === 1 ? 1.5 : SPEED === 1.5 ? 2 : 1; setSpeed(); return; }
   if (t.closest("#reveal")) { const g = t.closest(".sensgate"); g.classList.remove("sensgate"); t.closest("#reveal").remove(); return; }
   const lb = t.closest("[data-lang],#langBtn");
   if (lb) { const v = lb.dataset.lang || (LANG === "ro" ? "en" : "ro"); if (v !== LANG) { setPref("lang", v); location.reload(); } return; }
   if (t.id === "back") { NAV > 0 ? history.back() : (location.hash = "#/browse"); return; }
-  if (t.id === "fav") {
+  if (t.id === "fav" || t.closest("[data-plfav]")) {
     const id = decodeURIComponent(location.hash.split("/")[2]);
     const favs = store.get("favs", []), i = favs.indexOf(id);
     i >= 0 ? favs.splice(i, 1) : favs.unshift(id);
     store.set("favs", favs);
-    t.textContent = i >= 0 ? L("🤍 Save", "🤍 Salvează") : L("❤️ Saved", "❤️ Salvat");
+    track(i >= 0 ? "unsave" : t.id === "fav" ? "save_button" : "save_heart_on_video");
+    const fb = $("#fav"), pb = $("[data-plfav]");
+    if (fb) fb.textContent = i >= 0 ? L("🤍 Save", "🤍 Salvează") : L("❤️ Saved", "❤️ Salvat");
+    if (pb) { pb.textContent = i >= 0 ? "🤍" : "❤️"; pb.classList.toggle("on", i < 0); pb.classList.remove("pop"); void pb.offsetWidth; pb.classList.add("pop"); }
   }
   if (t.id === "keySave") {
     const v = $("#keyIn").value.trim(), msg = $("#keyMsg");
@@ -1057,6 +1239,7 @@ document.addEventListener("change", (e) => {
   if (e.target.id === "aiOn") { setPref("ai", e.target.checked ? undefined : false); route(true); return; }
   if (e.target.id === "helpOn") { setPref("help", e.target.checked ? undefined : false); route(true); return; }
   if (e.target.id === "country") { setPref("country", e.target.value); return; }
+  if (e.target.id === "homeCountry") { setPref("home", e.target.value); route(true); return; }
   if (e.target.id === "fbCat") { e.target.dispatchEvent(new Event("input", { bubbles: true })); return; }
   const s = e.target.closest("select[data-k]");
   if (!s) return;
@@ -1092,14 +1275,17 @@ function route(keepScroll) {
     : tab === "collections" ? collections() : tab === "saved" ? saved() : tab === "settings" ? settings() : tab === "help" ? helpPage() : home();
   const y = scrollY;
   const root = ["home", "saved", "settings", "library"].includes(tab) || (tab === "browse" && ![...params.keys()].length);
-  const reminder = `<div class="box note reminder">🧡 ${L("<b>A friendly reminder:</b> everything here is advice from real people and their own experience. Use your critical thinking — take what fits you and your family, and leave what doesn't. You know your child best.",
-    "<b>Un gând prietenos:</b> tot ce găsești aici sunt sfaturi de la oameni reali, din experiența lor. Folosește-ți gândirea critică — păstrează ce ți se potrivește ție și familiei tale și lasă deoparte ce nu. Tu îți cunoști copilul cel mai bine.")}</div>`;
+  const rtxt = L("<b>A friendly reminder:</b> everything here is advice from real people and their own experience. Use your critical thinking — take what fits you and your family, and leave what doesn't. You know your child best.",
+    "<b>Un gând prietenos:</b> tot ce găsești aici sunt sfaturi de la oameni reali, din experiența lor. Folosește-ți gândirea critică — păstrează ce ți se potrivește ție și familiei tale și lasă deoparte ce nu. Tu îți cunoști copilul cel mai bine.");
+  const reminder = `<button type="button" class="reminder" style="--dur:${Math.round(rtxt.replace(/<[^>]+>/g, "").length / 7)}s" aria-label="${L("A friendly reminder (tap to read)", "Un gând prietenos (atinge ca să citești)")}">🧡<span class="rm-win"><span class="rm-track"><span>${rtxt}</span><span aria-hidden="true">${rtxt}</span></span><span class="rm-full">${rtxt}</span></span></button>`;
   // Sits at the end of the page (far from the tab bar and buttons) and opens a page rather than dialing, so it's hard to hit by accident.
-  const helpBar = prefs().help === false || tab === "help" ? "" : `<div class="helpbar"><span>🆘 ${L("Need help? Emergency", "Ai nevoie de ajutor? Urgențe")} <b>112</b></span>
-    <a href="#/help">${L("Help lines for moms →", "Linii de ajutor pentru mame →")}</a></div>`;
+  const helpBar = prefs().help === false || tab === "help" ? "" : `<div class="helpbar"><span>🆘 ${L("Need help? Emergency", "Ai nevoie de ajutor? Urgențe")} <b>${esc(helpSet().sos)}</b></span>
+    <a href="#/help">${L("Help lines →", "Linii de ajutor →")}</a></div>`;
   view.innerHTML = (root ? "" : `<div class="backbar"><button class="back" id="back">${L("← Back", "← Înapoi")}</button></div>`) + reminder + html + helpBar;
   scrollTo(0, keepScroll === true ? y : tab !== "item" && SCROLL[location.hash] ? SCROLL[location.hash] : 0);
   AFTER.forEach((f) => f());
+  track("page_" + tab, params.get("q") ? { search: params.get("q") } : tab === "item" ? { video: decodeURIComponent(parts[1] || "") } : null);
+  if (params.get("q")) track("search");
 }
 addEventListener("hashchange", (e) => {
   SCROLL["#" + (e.oldURL.split("#")[1] || "")] = LAST_Y;
@@ -1114,8 +1300,10 @@ $("#searchForm").addEventListener("submit", (e) => {
 });
 function shellText() {
   document.documentElement.lang = LANG;
-  $("#langBtn").textContent = LANG === "ro" ? "🇬🇧 English" : "🇷🇴 Română";
+  $("#langBtn").innerHTML = `<span class="${LANG === "en" ? "on" : ""}">EN</span><span class="${LANG === "ro" ? "on" : ""}">RO</span>`;
+  $("#langBtn").setAttribute("aria-label", LANG === "ro" ? "Switch to English" : "Schimbă în română");
   if (LANG !== "ro") return;
+  $("#tutBtn span").textContent = "Tutoriale";
   $(".brand").textContent = "🌱 Biblioteca Părinților";
   document.title = "Biblioteca Părinților";
   $("#q").placeholder = "Întreabă sau caută orice…";
