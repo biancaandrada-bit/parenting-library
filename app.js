@@ -496,12 +496,19 @@ const todayN = () => Math.floor((Date.now() - new Date().getTimezoneOffset() * 6
 const PIMG = (n, c) => `<img class="${c}" src="img/panda-${n}.webp" alt="" width="199" height="300">`;
 const PL = () => (LANG === "ro" ? "ro" : "en");
 // Home: holds the board and wiggles it until today's fact is opened, then just stands there without it.
-const PFIG = () => `<span class="pfig">${PIMG("hide", "ph")}${PIMG("hold-" + PL(), "pd")}</span>`;
+const PFIG = () => `<span class="pfig"><img class="ph" src="img/ph-hide.webp" alt="" width="200" height="200"><img class="pb" src="img/ph-body.webp" alt="" width="200" height="200"><img class="pk" src="img/ph-blink.webp" alt="" width="200" height="200"><img class="pd" src="img/ph-board-${PL()}.webp" alt="" width="200" height="200"></span>`;
 // Popup: lifts the board above its head.
 const PANDA_SIGN = () => `<div class="pscene"><span class="pfig">${PIMG("hold-" + PL(), "pd")}${PIMG("sign-" + PL(), "ps")}</span></div>`;
 function pandaState() {
   const b = $("#factBtn"); if (!b) return;
   b.classList.toggle("wiggle", store.get("factDay", 0) !== todayN());
+  // On phones, centre the panda above the "See them →" link of the new-videos pill.
+  const s = $(".newpill > span");
+  b.style.marginRight = "";
+  if (s && innerWidth <= 600) {
+    const r = s.getBoundingClientRect(), br = b.getBoundingClientRect();
+    b.style.marginRight = Math.max(0, br.right - (r.left + r.width / 2) - br.width / 2) + "px";
+  }
   new Image().src = "img/panda-sign-" + PL() + ".webp";
 }
 async function showFact() {

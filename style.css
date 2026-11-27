@@ -367,10 +367,13 @@ details.learn > summary { cursor: pointer; font-size: 16px; }
 .pfig { position: relative; display: block; }
 .pfig img { width: 100%; height: auto; display: block; }
 .pfig img + img { position: absolute; inset: 0; }
-.factbtn { width: 64px; margin: -10px 0 2px auto; padding: 0; border: 0; background: none; cursor: pointer; flex: none; -webkit-tap-highlight-color: transparent; }
-.factbtn .pd { opacity: 0; }
+.factbtn { width: 60px; margin: -10px 0 -2px auto; padding: 0; border: 0; background: none; cursor: pointer; flex: none; -webkit-tap-highlight-color: transparent; }
+.factbtn .pb, .factbtn .pd, .factbtn .pk { opacity: 0; }
+.factbtn.wiggle .pk { animation: pblink 2.6s step-end infinite; }
+@keyframes pblink { 0% { opacity: 0; } 51% { opacity: 1; } 55% { opacity: 0; } 71% { opacity: 1; } 75% { opacity: 0; } }
 .factbtn.wiggle .ph { opacity: 0; }
-.factbtn.wiggle .pd { opacity: 1; transform-origin: 50% 95%; animation: pwig 2.6s ease-in-out infinite; }
+.factbtn.wiggle .pb { opacity: 1; }
+.factbtn.wiggle .pd { opacity: 1; transform-origin: 50.7% 75.9%; animation: pwig 2.6s ease-in-out infinite; }
 @keyframes pwig { 0%, 45%, 100% { transform: none; } 52% { transform: rotate(-7deg) translateY(-2px); } 59% { transform: rotate(6deg) translateY(-2px); } 66% { transform: rotate(-5deg); } 73% { transform: rotate(3deg); } 80% { transform: none; } }
 .factm { text-align: center; }
 .factm h2 { margin: 4px 0 6px; }
@@ -392,3 +395,4 @@ details.learn > summary { cursor: pointer; font-size: 16px; }
 .hello .muted { flex: 1 1 0; }
 .factbtn:focus { outline: none; }
 .factbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 12px; }
+
