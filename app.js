@@ -489,6 +489,38 @@ function newPill() {
   const n = ITEMS.filter((i) => i.added && i.added >= from && i.category !== "off-topic").length;
   return `<a class="newpill ${unseen.length ? "fresh" : ""}" href="#/browse?new=${from}" data-newseen="${dates[0]}">🆕 <b>${n} ${L(n === 1 ? "new video added" : "new videos added", n === 1 ? "videoclip nou adăugat" : "videoclipuri noi adăugate")} <small>· ${fmtDay(dates[0])}</small></b><span>${L("See them →", "Vezi aici →")}</span></a>`;
 }
+/* "Did you know?": a panda button in the header opens today's fact. Facts are picked once by pipeline/fun_facts.py
+   (data/facts.json); the panda wiggles until it has been opened today. */
+let FACTS = null;
+const todayN = () => Math.floor((Date.now() - new Date().getTimezoneOffset() * 6e4) / 864e5);
+const PANDA = `<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="15" cy="16" r="9" fill="#2d2a32"/><circle cx="49" cy="16" r="9" fill="#2d2a32"/>
+  <circle cx="15" cy="16" r="4" fill="#f4a7b9"/><circle cx="49" cy="16" r="4" fill="#f4a7b9"/><ellipse cx="32" cy="35" rx="24" ry="22" fill="#fff" stroke="#2d2a32" stroke-width="2.5"/>
+  <ellipse cx="22" cy="33" rx="6.5" ry="8" transform="rotate(-25 22 33)" fill="#2d2a32"/><ellipse cx="42" cy="33" rx="6.5" ry="8" transform="rotate(25 42 33)" fill="#2d2a32"/>
+  <circle cx="24" cy="31" r="2.6" fill="#fff"/><circle cx="42.5" cy="31" r="2.6" fill="#fff"/><ellipse cx="32" cy="42" rx="3.6" ry="2.6" fill="#2d2a32"/>
+  <path d="M28 46.5q4 3.5 8 0" stroke="#2d2a32" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="16" cy="43" r="3.5" fill="#f9c6d2"/><circle cx="48" cy="43" r="3.5" fill="#f9c6d2"/></svg>`;
+// Popup scene: a curious panda pulls a "today's fun fact" board out from behind its back and holds it up.
+const PANDA_SIGN = () => `<svg class="pscene" viewBox="0 0 160 172" aria-hidden="true">
+  <g class="psign"><rect x="33" y="46" width="14" height="80" rx="7" fill="#2d2a32"/><rect x="113" y="46" width="14" height="80" rx="7" fill="#2d2a32"/><rect x="34" y="4" width="92" height="46" rx="9" fill="#fff6e0" stroke="#b07a4a" stroke-width="3"/>
+    <text x="80" y="23" text-anchor="middle" font-size="12.5" font-weight="800" fill="#c2677a">${L("TODAY'S", "FUN FACT")}</text>
+    <text x="80" y="40" text-anchor="middle" font-size="12.5" font-weight="800" fill="#c2677a">${L("FUN FACT ✦", "AL ZILEI ✦")}</text>
+    <ellipse cx="40" cy="50" rx="9" ry="8" fill="#2d2a32"/><ellipse cx="120" cy="50" rx="9" ry="8" fill="#2d2a32"/></g>
+  <ellipse cx="62" cy="166" rx="12" ry="7" fill="#2d2a32"/><ellipse cx="98" cy="166" rx="12" ry="7" fill="#2d2a32"/>
+  <ellipse cx="80" cy="146" rx="40" ry="24" fill="#fff" stroke="#2d2a32" stroke-width="3"/><path d="M42 140q38 -18 76 0" stroke="#2d2a32" stroke-width="12" fill="none" stroke-linecap="round"/>
+  <g class="phead"><circle cx="50" cy="72" r="12" fill="#2d2a32"/><circle cx="110" cy="72" r="12" fill="#2d2a32"/><circle cx="50" cy="72" r="5.5" fill="#f4a7b9"/><circle cx="110" cy="72" r="5.5" fill="#f4a7b9"/>
+    <ellipse cx="80" cy="98" rx="38" ry="33" fill="#fff" stroke="#2d2a32" stroke-width="3"/>
+    <ellipse cx="64" cy="95" rx="10" ry="12.5" transform="rotate(-25 64 95)" fill="#2d2a32"/><ellipse cx="96" cy="95" rx="10" ry="12.5" transform="rotate(25 96 95)" fill="#2d2a32"/>
+    <g class="peyes"><circle cx="65" cy="93" r="4" fill="#fff"/><circle cx="95" cy="93" r="4" fill="#fff"/><circle cx="66" cy="92" r="1.4" fill="#2d2a32"/><circle cx="96" cy="92" r="1.4" fill="#2d2a32"/></g>
+    <ellipse cx="80" cy="108" rx="5" ry="3.6" fill="#2d2a32"/><path class="pmouth" d="M74 114q6 5 12 0" stroke="#2d2a32" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <circle cx="57" cy="110" r="5" fill="#f9c6d2"/><circle cx="103" cy="110" r="5" fill="#f9c6d2"/></g>
+  <text class="pq" x="128" y="70" font-size="20" font-weight="800" fill="#c2677a">?</text></svg>`;
+function pandaState() { const b = $("#factBtn"); if (b) b.classList.toggle("wiggle", store.get("factDay", 0) !== todayN()); }
+async function showFact() {
+  if (!FACTS) FACTS = await getJSON("data/facts.json?v=" + todayN(), []);
+  if (!FACTS.length) return;
+  const f = FACTS[((todayN() * 7919) % FACTS.length)], it = BY_ID[f.id];
+  modal(`<div class="factm">${PANDA_SIGN()}<h2>${L("Did you know?", "Știai că…?")}</h2><p>${esc((x => x[0].toUpperCase() + x.slice(1))(LANG === "ro" ? f.ro : f.en))}</p>
+    ${it ? `<a class="btn ghost sm" href="#/item/${encodeURIComponent(f.id)}" data-modalclose>${L("▶ Watch the video", "▶ Vezi videoclipul")} · ${at(it)}</a>` : ""}</div>`, "factcard");
+}
 function home() {
   const vis = ITEMS.filter((i) => i.category !== "off-topic");
   const stageCounts = {};
@@ -521,7 +553,9 @@ function home() {
       setTimeout(() => { i = (i + 1) % ex.length; a.textContent = ex[i]; a.href = "#/browse?q=" + encodeURIComponent(ex[i]); a.classList.remove("out"); }, 350);
     }, 3200);
   });
-  return `<div class="hello"><h1>${L("Hi! 👋", "Bună! 👋")}</h1><span class="muted">${vis.length} ${L("videos, summarised & organised", "videoclipuri, rezumate și organizate")}</span></div>
+  AFTER.push(pandaState);
+  return `<div class="hello"><h1>${L("Hi! 👋", "Bună! 👋")}</h1><span class="muted">${vis.length} ${L("videos, summarised & organised", "videoclipuri, rezumate și organizate")}</span>
+    <button id="factBtn" class="factbtn" type="button" aria-label="${L("Did you know? Fact of the day", "Știai că…? Fun fact-ul zilei")}">${PANDA}</button></div>
     ${newPill()}
     <div class="askcard"><b>✨ ${L("Ask anything", "Întreabă orice")}</b><span class="muted">${L("e.g.", "ex.")}</span>
       <a class="chip soft" id="exRot" href="#/browse?q=${encodeURIComponent(ex[0])}">${esc(ex[0])}</a></div>
@@ -994,6 +1028,9 @@ const TOUR_STEPS = [
     x: L("Everything you save and every note you write ends up here.", "Tot ce salvezi și toate notițele tale ajung aici.") },
   { q: 1, s: "#langBtn", t: L("🌍 Language", "🌍 Limba"),
     x: L("Switch the whole app between English (EN) and Romanian (RO) with one tap.", "Schimbă toată aplicația între engleză (EN) și română (RO) cu o singură atingere.") },
+  { q: 1, r: "#/", s: "#factBtn", t: L("🐼 Fun fact of the day", "🐼 Fun fact-ul zilei"),
+    x: L("Tap the panda for a new “Did you know?” from the videos every day. It wiggles until you've read today's fact.",
+      "Atinge ursulețul panda pentru un „Știai că…?” nou din videoclipuri, în fiecare zi. Se mișcă până citești fun fact-ul de azi.") },
   { q: 1, s: "#tutBtn", t: L("🎓 Tutorials", "🎓 Tutoriale"),
     x: L("Tours and tutorial videos are always here, if you want to see something again.", "Tururile și videoclipurile tutorial sunt mereu aici, dacă vrei să revezi ceva.") },
   { q: 1, m: 1, s: () => { if (!$(".vidcard")) playTut("short", false); return $(".vidcard"); }, t: L("▶️ Tutorial videos, right in the app", "▶️ Videoclipuri tutorial, direct în aplicație"),
@@ -1196,6 +1233,7 @@ document.addEventListener("click", async (e) => {
     try { await navigator.clipboard.writeText(txt); t.textContent = L("Copied ✓", "Copiat ✓"); }
     catch { const w = window.open(); w.document.body.innerText = txt; }
   }
+  if (t.closest("#factBtn") && !TOUR) { store.set("factDay", todayN()); pandaState(); showFact(); track("fact_open"); return; }
   if (t.id === "fbLock") { t.hidden = true; $("#fbPw").hidden = false; $("#fbPw").focus(); return; }
   if (t.id === "fbOff" || t.id === "fbSend") {
     const off = t.id === "fbOff";
