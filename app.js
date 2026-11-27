@@ -487,7 +487,7 @@ function newPill() {
   const seen = store.get("newSeen", ""), unseen = dates.filter((d) => d > seen);
   const from = unseen.length ? unseen[unseen.length - 1] : dates[0];
   const n = ITEMS.filter((i) => i.added && i.added >= from && i.category !== "off-topic").length;
-  return `<a class="newpill ${unseen.length ? "fresh" : ""}" href="#/browse?new=${from}" data-newseen="${dates[0]}">🆕 <b>${n} ${L(n === 1 ? "new video added" : "new videos added", n === 1 ? "videoclip nou adăugat" : "videoclipuri noi adăugate")} <small>· ${fmtDay(dates[0])}</small></b><span>${L("See them →", "Vezi-le →")}</span></a>`;
+  return `<a class="newpill ${unseen.length ? "fresh" : ""}" href="#/browse?new=${from}" data-newseen="${dates[0]}">🆕 <b>${n} ${L(n === 1 ? "new video added" : "new videos added", n === 1 ? "videoclip nou adăugat" : "videoclipuri noi adăugate")} <small>· ${fmtDay(dates[0])}</small></b><span>${L("See them →", "Vezi aici →")}</span></a>`;
 }
 function home() {
   const vis = ITEMS.filter((i) => i.category !== "off-topic");
@@ -805,7 +805,7 @@ function settings() {
     <div class="box"><h3 style="margin-top:0">${L("✨ AI answers", "✨ Răspunsuri AI")}</h3>
       <p class="muted">${L("Type a question in the search bar and get a short answer written only from these videos, with links to the sources. Needs a free Google Gemini key. It is stored only on this device.",
         "Scrie o întrebare în bara de căutare și primești un răspuns scurt, scris doar din aceste videoclipuri, cu linkuri către surse. Ai nevoie de o cheie Google Gemini gratuită. Se salvează doar pe acest dispozitiv.")}</p>
-      <p><a class="btn ghost" href="${KEY_URL}" target="_blank" rel="noopener">🔑 ${L("Get a free key", "Ia o cheie gratuită")}: aistudio.google.com/apikey ↗</a></p>
+      <p><a class="btn ghost keybtn" href="${KEY_URL}" target="_blank" rel="noopener">🔑 ${L("Get a free key", "Cheie gratuită")}: aistudio.google.com/apikey ↗</a></p>
       <p class="keystate">${keyState}</p>
       <label class="toggle"><input type="checkbox" id="aiOn" ${aiOn ? "checked" : ""}> ${L("Use AI answers and price search", "Folosește răspunsurile AI și căutarea de prețuri")}</label>
       <div class="row" style="margin-top:8px"><input type="password" id="keyIn" data-clarity-mask="true" placeholder="${own ? L("Paste a new key to replace it", "Lipește o cheie nouă ca s-o înlocuiești") : L("Paste Gemini API key", "Lipește cheia Gemini API")}" autocomplete="off" style="flex:1">
@@ -834,7 +834,7 @@ function settings() {
       <button class="btn ghost" id="bkLoad">⬆️ ${L("Restore from a copy", "Restaurează dintr-o copie")}</button>
       <input type="file" id="bkFile" accept=".json,application/json" hidden></div>
       <div id="bkMsg" class="keymsg"></div></div>
-    <div class="box beta"><h3 style="margin-top:0">🧪 ${L("You're a beta tester", "Ești beta tester")}</h3>
+    <div class="box beta"><h3 style="margin-top:0" id="betaH">🧪 ${L("You're a beta tester", "Ești beta tester")}${store.get("admin", false) ? " · ⭐ admin" : ""}</h3>
       <p class="muted small">${L("Thank you for trying the app! To improve it for you, it records anonymous usage (which pages and buttons are used, searches) with Microsoft Clarity. Your notes, saved videos and AI key are never sent.",
         "Mulțumesc că testezi aplicația! Ca s-o fac mai bună pentru tine, înregistrează anonim cum e folosită (ce pagini și butoane, căutările) cu Microsoft Clarity. Notițele, videoclipurile salvate și cheia AI nu sunt trimise niciodată.")}</p></div>
     <div class="box"><h3 style="margin-top:0">${L("🏷️ Category feedback", "🏷️ Feedback categorii")}</h3><p class="muted">${n} ${L("items with feedback on this device.", "elemente cu feedback pe acest dispozitiv.")}</p>
@@ -1196,10 +1196,22 @@ document.addEventListener("click", async (e) => {
     try { await navigator.clipboard.writeText(txt); t.textContent = L("Copied ✓", "Copiat ✓"); }
     catch { const w = window.open(); w.document.body.innerText = txt; }
   }
+  if (t.closest("#betaH")) {
+    ADMIN_TAPS = (ADMIN_TAPS || 0) + 1;
+    if (ADMIN_TAPS < 5) return;
+    ADMIN_TAPS = 0;
+    if (store.get("admin", false)) { if (confirm("Turn off admin mode on this device?")) { store.set("admin", false); route(true); } return; }
+    const pw = prompt("🔒");
+    if (!pw) return;
+    const hx = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("parenting-lib:" + pw)))].map((b) => b.toString(16).padStart(2, "0")).join("");
+    if (hx === ADMIN_HASH) { store.set("admin", true); alert("⭐ Admin mode on. Your reports are marked BIANCA."); route(true); } else alert("✗");
+    return;
+  }
   if (t.id === "fbOff" || t.id === "fbSend") {
     const id = decodeURIComponent(location.hash.split("/")[2] || ""), fb = store.get("feedback", {}), cur = fb[id] || { title: BY_ID[id]?.title, was: BY_ID[id]?.category };
     const off = t.id === "fbOff", cat = $("#fbCat").value, note = $("#fbNote").value.trim();
     if (!off && !cat && !note) { $("#fbNote").focus(); return; }
+    if (off && !confirm(L("Report this video as not about parenting?", "Raportezi acest videoclip ca nefiind despre parenting?"))) return;
     t.disabled = true;
     sendFb(id, off ? "not_parenting" : "category: " + (cat || "-"), off ? "" : note).then((ok) => {
       if (!ok) { t.disabled = false; alert(L("Couldn't send — check your internet and try again.", "Nu s-a putut trimite — verifică internetul și încearcă din nou.")); return; }
@@ -1279,8 +1291,11 @@ let NAV = 0, LAST_Y = 0;
 const SCROLL = {};
 addEventListener("scroll", () => { LAST_Y = scrollY; }, { passive: true });
 // Feedback goes to a Google Form → private Google Sheet (Bianca's account). Users never see the form.
+let ADMIN_TAPS = 0;
+const ADMIN_HASH = "764489e3fd591df44410c8d75100336c18aa393110a566d07db75fdb1b94e479";
 const FB_FORM = "https://docs.google.com/forms/d/e/1FAIpQLSc_RvZrau3SGez2IiVUOMJZ-FGIMv3Wkn1B1XBQUb3nZ1gF_w/formResponse";
 function sendFb(id, type, note) {
+  if (store.get("admin", false)) type = "⭐ BIANCA · " + type;
   const b = new URLSearchParams({ "entry.2021367569": id + " | " + (BY_ID[id]?.title || ""), "entry.1139664319": type, "entry.239655636": note || "" });
   return fetch(FB_FORM, { method: "POST", mode: "no-cors", body: b }).then(() => true, () => false);
 }

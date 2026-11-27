@@ -352,3 +352,6 @@ details.learn > summary { cursor: pointer; font-size: 16px; }
 .sdots i.on { width: 16px; border-radius: 3px; background: var(--accent, #c0703f); }
 .btn.soft { background: var(--accent-soft); color: var(--accent); }
 #fbOff:disabled { opacity: 1; background: var(--green); color: #fff; }
+.hscroll:has(.coll.on) { padding-top: 7px; }
+#betaH { user-select: none; -webkit-user-select: none; }
+.keybtn { white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: clamp(11px, 3.3vw, 15px); padding-left: 12px; padding-right: 12px; }
