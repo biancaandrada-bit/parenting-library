@@ -834,7 +834,7 @@ function settings() {
       <button class="btn ghost" id="bkLoad">⬆️ ${L("Restore from a copy", "Restaurează dintr-o copie")}</button>
       <input type="file" id="bkFile" accept=".json,application/json" hidden></div>
       <div id="bkMsg" class="keymsg"></div></div>
-    <div class="box beta"><h3 style="margin-top:0" id="betaH">🧪 ${L("You're a beta tester", "Ești beta tester")}${store.get("admin", false) ? " · ⭐ admin" : ""}</h3>
+    <div class="box beta"><h3 style="margin-top:0">🧪 ${L("You're a beta tester", "Ești beta tester")}</h3>
       <p class="muted small">${L("Thank you for trying the app! To improve it for you, it records anonymous usage (which pages and buttons are used, searches) with Microsoft Clarity. Your notes, saved videos and AI key are never sent.",
         "Mulțumesc că testezi aplicația! Ca s-o fac mai bună pentru tine, înregistrează anonim cum e folosită (ce pagini și butoane, căutările) cu Microsoft Clarity. Notițele, videoclipurile salvate și cheia AI nu sunt trimise niciodată.")}</p></div>
     <div class="box"><h3 style="margin-top:0">${L("🏷️ Category feedback", "🏷️ Feedback categorii")}</h3><p class="muted">${n} ${L("items with feedback on this device.", "elemente cu feedback pe acest dispozitiv.")}</p>
@@ -1196,31 +1196,34 @@ document.addEventListener("click", async (e) => {
     try { await navigator.clipboard.writeText(txt); t.textContent = L("Copied ✓", "Copiat ✓"); }
     catch { const w = window.open(); w.document.body.innerText = txt; }
   }
-  if (t.closest("#betaH")) {
-    ADMIN_TAPS = (ADMIN_TAPS || 0) + 1;
-    if (ADMIN_TAPS < 5) return;
-    ADMIN_TAPS = 0;
-    if (store.get("admin", false)) { if (confirm("Turn off admin mode on this device?")) { store.set("admin", false); route(true); } return; }
-    const pw = prompt("🔒");
-    if (!pw) return;
-    const hx = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("parenting-lib:" + pw)))].map((b) => b.toString(16).padStart(2, "0")).join("");
-    if (hx === ADMIN_HASH) { store.set("admin", true); alert("⭐ Admin mode on. Your reports are marked BIANCA."); route(true); } else alert("✗");
+  if (t.id === "fbLock") { t.hidden = true; $("#fbPw").hidden = false; $("#fbPw").focus(); return; }
+  if (t.id === "fbOff" || t.id === "fbSend") {
+    const off = t.id === "fbOff";
+    if (!off && !$("#fbCat").value && !$("#fbNote").value.trim()) { $("#fbNote").focus(); return; }
+    modal(`<h2>${off ? L("Report this video as not about parenting?", "Raportezi acest videoclip ca nefiind despre parenting?") : L("Send this feedback?", "Trimiți acest feedback?")}</h2>
+      <div class="fbconf"><button class="btn ghost" data-modalclose>${L("Cancel", "Anulează")}</button><button class="btn" id="fbGo" data-off="${off ? 1 : ""}">${off ? L("Report", "Raportează") : L("Send", "Trimite")}</button></div>
+      <div class="fblock"><input type="password" id="fbPw" inputmode="numeric" autocomplete="off" hidden aria-label="code"><button id="fbLock" aria-label="code">🔒</button><span id="fbPwErr"></span></div>`);
     return;
   }
-  if (t.id === "fbOff" || t.id === "fbSend") {
+  if (t.id === "fbGo") {
     const id = decodeURIComponent(location.hash.split("/")[2] || ""), fb = store.get("feedback", {}), cur = fb[id] || { title: BY_ID[id]?.title, was: BY_ID[id]?.category };
-    const off = t.id === "fbOff", cat = $("#fbCat").value, note = $("#fbNote").value.trim();
-    if (!off && !cat && !note) { $("#fbNote").focus(); return; }
-    if (off && !confirm(L("Report this video as not about parenting?", "Raportezi acest videoclip ca nefiind despre parenting?"))) return;
+    const off = !!t.dataset.off, cat = $("#fbCat").value, note = $("#fbNote").value.trim(), pw = $("#fbPw").value;
+    let admin = false;
+    if (pw) {
+      const hx = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("parenting-lib:" + pw)))].map((b) => b.toString(16).padStart(2, "0")).join("");
+      if (hx !== ADMIN_HASH) { $("#fbPwErr").textContent = "✗"; return; }
+      admin = true;
+    }
     t.disabled = true;
-    sendFb(id, off ? "not_parenting" : "category: " + (cat || "-"), off ? "" : note).then((ok) => {
-      if (!ok) { t.disabled = false; alert(L("Couldn't send — check your internet and try again.", "Nu s-a putut trimite — verifică internetul și încearcă din nou.")); return; }
-      off ? (cur.off = true) : (cur.sent = true);
-      fb[id] = cur; store.set("feedback", fb);
-      track(off ? "feedback_not_parenting" : "feedback_category");
-      if (off) t.textContent = L("✓ Reported as not about parenting. Thank you!", "✓ Raportat ca nefiind despre parenting. Mulțumim!"), t.classList.remove("soft");
-      else t.disabled = false, $("#fbSent").textContent = L("✓ Sent. Thank you!", "✓ Trimis. Mulțumim!");
-    });
+    const ok = await sendFb(id, off ? "not_parenting" : "category: " + (cat || "-"), off ? "" : note, admin);
+    closeModal();
+    if (!ok) { alert(L("Couldn't send — check your internet and try again.", "Nu s-a putut trimite — verifică internetul și încearcă din nou.")); return; }
+    off ? (cur.off = true) : (cur.sent = true);
+    fb[id] = cur; store.set("feedback", fb);
+    track(off ? "feedback_not_parenting" : "feedback_category");
+    const b = $("#fbOff");
+    if (off && b) b.disabled = true, b.textContent = L("✓ Reported as not about parenting. Thank you!", "✓ Raportat ca nefiind despre parenting. Mulțumim!"), b.classList.remove("soft");
+    else if ($("#fbSent")) $("#fbSent").textContent = L("✓ Sent. Thank you!", "✓ Trimis. Mulțumim!");
     return;
   }
   if (t.id === "clearFb" && confirm(L("Clear all category feedback?", "Ștergi tot feedback-ul pentru categorii?"))) { store.set("feedback", {}); route(); }
@@ -1291,11 +1294,11 @@ let NAV = 0, LAST_Y = 0;
 const SCROLL = {};
 addEventListener("scroll", () => { LAST_Y = scrollY; }, { passive: true });
 // Feedback goes to a Google Form → private Google Sheet (Bianca's account). Users never see the form.
-let ADMIN_TAPS = 0;
+localStorage.removeItem("admin");
 const ADMIN_HASH = "764489e3fd591df44410c8d75100336c18aa393110a566d07db75fdb1b94e479";
 const FB_FORM = "https://docs.google.com/forms/d/e/1FAIpQLSc_RvZrau3SGez2IiVUOMJZ-FGIMv3Wkn1B1XBQUb3nZ1gF_w/formResponse";
-function sendFb(id, type, note) {
-  if (store.get("admin", false)) type = "⭐ BIANCA · " + type;
+function sendFb(id, type, note, admin) {
+  if (admin) type = "⭐ BIANCA · " + type;
   const b = new URLSearchParams({ "entry.2021367569": id + " | " + (BY_ID[id]?.title || ""), "entry.1139664319": type, "entry.239655636": note || "" });
   return fetch(FB_FORM, { method: "POST", mode: "no-cors", body: b }).then(() => true, () => false);
 }

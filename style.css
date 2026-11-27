@@ -353,5 +353,9 @@ details.learn > summary { cursor: pointer; font-size: 16px; }
 .btn.soft { background: var(--accent-soft); color: var(--accent); }
 #fbOff:disabled { opacity: 1; background: var(--green); color: #fff; }
 .hscroll:has(.coll.on) { padding-top: 7px; }
-#betaH { user-select: none; -webkit-user-select: none; }
 .keybtn { white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: clamp(11px, 3.3vw, 15px); padding-left: 12px; padding-right: 12px; }
+.fbconf { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+.fblock { display: flex; align-items: center; gap: 6px; margin-top: 10px; min-height: 24px; }
+#fbLock { border: 0; background: none; opacity: .18; font-size: 12px; padding: 2px; cursor: pointer; }
+#fbPw { width: 110px; padding: 4px 8px; font-size: 14px; }
+#fbPwErr { color: #b3261e; }
