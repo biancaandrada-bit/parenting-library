@@ -493,12 +493,12 @@ function newPill() {
    (data/facts.json); the panda wiggles until it has been opened today. */
 let FACTS = null;
 const todayN = () => Math.floor((Date.now() - new Date().getTimezoneOffset() * 6e4) / 864e5);
-const PIMG = (n, c) => `<img class="${c}" src="img/panda-${n}.webp" alt="" width="199" height="300">`;
+const PIMG = (n, c, p = "panda") => `<img class="${c}" src="img/${p}-${n}.webp" alt="" width="199" height="300">`;
 const PL = () => (LANG === "ro" ? "ro" : "en");
 // Home: holds the board and wiggles it until today's fact is opened, then just stands there without it.
 const PFIG = () => `<span class="pfig"><img class="ph" src="img/ph-hide.webp" alt="" width="200" height="200"><img class="pb" src="img/ph-body.webp" alt="" width="200" height="200"><img class="pk" src="img/ph-blink.webp" alt="" width="200" height="200"><img class="pd" src="img/ph-board-${PL()}.webp" alt="" width="200" height="200"></span>`;
 // Popup: lifts the board above its head.
-const PANDA_SIGN = () => `<div class="pscene"><span class="pfig">${PIMG("hold-" + PL(), "pd")}${PIMG("sign-" + PL(), "ps")}</span></div>`;
+const PANDA_SIGN = () => `<div class="pscene"><span class="pfig">${PIMG("body", "pb", "pf")}${PIMG("blink", "pk", "pf")}${PIMG("board-" + PL(), "pd", "pf")}${PIMG("sign-" + PL(), "ps")}</span></div>`;
 function pandaState() {
   const b = $("#factBtn"); if (!b) return;
   b.classList.toggle("wiggle", store.get("factDay", 0) !== todayN());
@@ -509,7 +509,7 @@ function pandaState() {
     const r = s.getBoundingClientRect(), br = b.getBoundingClientRect();
     b.style.marginRight = Math.max(0, br.right - (r.left + r.width / 2) - br.width / 2) + "px";
   }
-  new Image().src = "img/panda-sign-" + PL() + ".webp";
+  ["panda-sign-" + PL(), "pf-body", "pf-blink", "pf-board-" + PL()].forEach(n => { new Image().src = "img/" + n + ".webp"; });
 }
 async function showFact() {
   if (!FACTS) FACTS = await getJSON("data/facts.json?v=" + todayN(), []);

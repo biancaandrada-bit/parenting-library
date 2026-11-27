@@ -380,14 +380,17 @@ details.learn > summary { cursor: pointer; font-size: 16px; }
 .factm p { font-size: 16px; line-height: 1.45; margin: 0 0 14px; }
 .factm .btn { margin: 4px; }
 .pscene { width: 130px; margin: -8px auto 0; }
-.pscene .pd { animation: pwig 1s ease-in-out both, pout .12s linear .95s both; transform-origin: 50% 95%; }
+.pscene .pb, .pscene .pk { animation: pout .12s linear .95s both; }
+.pscene .pk { animation: pblinkpop .95s step-end both; }
+.pscene .pd { transform-origin: 50.7% 69.4%; animation: pwig 1s ease-in-out both, pout .12s linear .95s both; }
 .pscene .ps { transform-origin: 50% 100%; animation: psignup .55s cubic-bezier(.3, 1.6, .5, 1) .95s both; }
+@keyframes pblinkpop { 0% { opacity: 0; } 51% { opacity: 1; } 56% { opacity: 0; } 72% { opacity: 1; } 77%, 100% { opacity: 0; } }
 .factm h2, .factm p, .factm .btn { animation: pfade .4s ease-out 1.4s both; }
 @keyframes pcurious { 0% { transform: none; } 30%, 70% { transform: rotate(-6deg); } 100% { transform: none; } }
 @keyframes pout { to { opacity: 0; } }
 @keyframes psignup { 0% { opacity: 0; transform: translateY(8%) scale(.9); } 30% { opacity: 1; } 100% { opacity: 1; transform: none; } }
 @keyframes pfade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .factbtn .pfig img, .factm * { animation: none !important; } .pscene .pd { opacity: 0; } .pscene .ps { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .factbtn .pfig img, .factm * { animation: none !important; } .pscene .pb, .pscene .pk, .pscene .pd { opacity: 0; } .pscene .ps { opacity: 1; } }
 .hello { flex-wrap: nowrap; align-items: center; }
 .hello .muted { min-width: 0; line-height: 1.25; }
 .hello h1 { white-space: nowrap; }
