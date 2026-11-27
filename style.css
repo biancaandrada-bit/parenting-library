@@ -347,3 +347,8 @@ details.learn > summary { cursor: pointer; font-size: 16px; }
 .jump .chip { font-size: 11px; padding: 7px 4px; text-align: center; white-space: nowrap; }
 .anyb { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 6px; background: #f1eee9; color: var(--muted); }
 .tutch { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 10px 0 6px; } .tutch b { width: 100%; font-size: 14px; } .tutch .chip { font: inherit; font-size: 12.5px; } .tutch .chip span { color: var(--accent); font-weight: 700; }
+.sdots { display: flex; justify-content: center; gap: 5px; margin: 2px 0 4px; }
+.sdots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line); transition: background .2s, width .2s; }
+.sdots i.on { width: 16px; border-radius: 3px; background: var(--accent, #c0703f); }
+.btn.soft { background: var(--accent-soft); color: var(--accent); }
+#fbOff:disabled { opacity: 1; background: var(--green); color: #fff; }

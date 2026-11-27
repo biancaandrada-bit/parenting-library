@@ -707,11 +707,12 @@ function item(id) {
     ${it.transcript ? `<details class="box" id="trBox"><summary>${L("What they say (transcript", "Ce spun (transcriere")}${it.lang && it.lang !== "en" ? ", " + esc(it.lang.toUpperCase()) : ""})</summary><div class="pre">${esc(it.transcript)}</div></details>` : ""}
     ${it.onscreen.length ? `<details class="box" ${it.transcript ? "" : `id="trBox"`}><summary>${L("Text on screen", "Text pe ecran")}</summary><div class="pre">${esc(it.onscreen.join("\n"))}</div></details>` : ""}
     ${it.caption ? `<details class="box"><summary>${L("Original caption", "Descrierea originală")}</summary><div class="pre">${esc(it.caption)}</div></details>` : ""}
-    <details class="box" id="fbBox" ${fb.cat || fb.note ? "open" : ""}><summary>${L("🏷️ Wrong category? (feedback for organising)", "🏷️ Categorie greșită? (feedback pentru organizare)")}</summary>
+    <details class="box" id="fbBox" ${fb.cat || fb.note || fb.off ? "open" : ""}><summary>${L("💬 Feedback (not parenting? wrong topic?)", "💬 Feedback (nu e despre parenting? subiect greșit?)")}</summary>
+      <button class="btn ${fb.off ? "" : "soft"}" id="fbOff" style="margin-top:8px" ${fb.off ? "disabled" : ""}>${fb.off ? L("✓ Reported as not about parenting. Thank you!", "✓ Raportat ca nefiind despre parenting. Mulțumim!") : L("🚫 Not about parenting", "🚫 Nu e despre parenting")}</button>
       <div class="row" style="margin-top:8px"><select id="fbCat"><option value="">${L("Better topic…", "Subiect mai potrivit…")}</option>${Object.keys(CAT).map((c) =>
         `<option value="${c}" ${fb.cat === c ? "selected" : ""}>${esc(catName(c))}</option>`).join("")}</select></div>
       <textarea id="fbNote" placeholder="${L("e.g. 'should be its own category: travel', 'not useful', 'duplicate of …'", "ex. „ar trebui să fie o categorie separată: călătorii”, „nu e util”, „duplicat cu …”")}">${esc(fb.note || "")}</textarea>
-      <div class="muted">${L("Saved on this device. Export it from More → Feedback.", "Salvat pe acest dispozitiv. Exportă-l din Mai mult → Feedback.")}</div></details>
+      <button class="btn soft" id="fbSend">${L("Send", "Trimite")}</button> <span class="muted" id="fbSent">${fb.sent ? L("✓ Sent", "✓ Trimis") : ""}</span></details>
   </div></div>
   ${related.length ? `<h2>${L("Related", "Similare")}</h2>${paged(related, "rel" + id)}` : ""}`;
 }
@@ -1009,8 +1010,8 @@ const TOUR_STEPS = [
   { r: "#/settings", s: boxOf("#autoplay"), t: L("▶️ Autoplay", "▶️ Pornire automată"),
     x: L("Choose whether videos start playing as soon as you open them.", "Alege dacă videoclipurile pornesc singure când le deschizi.") },
   { r: "#/settings", s: boxOf("#exportFb"), t: L("🏷️ Feedback", "🏷️ Feedback"),
-    x: L("If a video is in the wrong category, say so on its page. Then copy all your feedback from here and send it.",
-      "Dacă un videoclip e în categoria greșită, spune asta pe pagina lui. Apoi copiază de aici tot feedback-ul și trimite-l.") },
+    x: L("Video not about parenting, or in the wrong topic? Tap Give feedback on its page — it's sent to us automatically.",
+      "Videoclipul nu e despre parenting sau e la subiectul greșit? Apasă Dă feedback pe pagina lui — ni se trimite automat.") },
   { q: 1, r: "#/settings", s: boxOf("#bkSave"), t: L("💾 Keep a backup", "💾 Păstrează o copie"),
     x: L("Your saved videos, notes and settings live only in this browser. Save a copy now and then, and restore it on a new phone or if the browser data is cleared.",
       "Videoclipurile salvate, notițele și setările stau doar în acest browser. Salvează din când în când o copie și restaureaz-o pe un telefon nou sau dacă se șterg datele browserului.") },
@@ -1195,6 +1196,21 @@ document.addEventListener("click", async (e) => {
     try { await navigator.clipboard.writeText(txt); t.textContent = L("Copied ✓", "Copiat ✓"); }
     catch { const w = window.open(); w.document.body.innerText = txt; }
   }
+  if (t.id === "fbOff" || t.id === "fbSend") {
+    const id = decodeURIComponent(location.hash.split("/")[2] || ""), fb = store.get("feedback", {}), cur = fb[id] || { title: BY_ID[id]?.title, was: BY_ID[id]?.category };
+    const off = t.id === "fbOff", cat = $("#fbCat").value, note = $("#fbNote").value.trim();
+    if (!off && !cat && !note) { $("#fbNote").focus(); return; }
+    t.disabled = true;
+    sendFb(id, off ? "not_parenting" : "category: " + (cat || "-"), off ? "" : note).then((ok) => {
+      if (!ok) { t.disabled = false; alert(L("Couldn't send — check your internet and try again.", "Nu s-a putut trimite — verifică internetul și încearcă din nou.")); return; }
+      off ? (cur.off = true) : (cur.sent = true);
+      fb[id] = cur; store.set("feedback", fb);
+      track(off ? "feedback_not_parenting" : "feedback_category");
+      if (off) t.textContent = L("✓ Reported as not about parenting. Thank you!", "✓ Raportat ca nefiind despre parenting. Mulțumim!"), t.classList.remove("soft");
+      else t.disabled = false, $("#fbSent").textContent = L("✓ Sent. Thank you!", "✓ Trimis. Mulțumim!");
+    });
+    return;
+  }
   if (t.id === "clearFb" && confirm(L("Clear all category feedback?", "Ștergi tot feedback-ul pentru categorii?"))) { store.set("feedback", {}); route(); }
   if (t.id === "bkSave") {
     const settings = { ...store.get("settings", {}) };
@@ -1262,6 +1278,33 @@ document.addEventListener("input", (e) => {
 let NAV = 0, LAST_Y = 0;
 const SCROLL = {};
 addEventListener("scroll", () => { LAST_Y = scrollY; }, { passive: true });
+// Feedback goes to a Google Form → private Google Sheet (Bianca's account). Users never see the form.
+const FB_FORM = "https://docs.google.com/forms/d/e/1FAIpQLSc_RvZrau3SGez2IiVUOMJZ-FGIMv3Wkn1B1XBQUb3nZ1gF_w/formResponse";
+function sendFb(id, type, note) {
+  const b = new URLSearchParams({ "entry.2021367569": id + " | " + (BY_ID[id]?.title || ""), "entry.1139664319": type, "entry.239655636": note || "" });
+  return fetch(FB_FORM, { method: "POST", mode: "no-cors", body: b }).then(() => true, () => false);
+}
+// Dots under horizontally swipeable filter rows, so people see there is more to the right.
+function addScrollDots() {
+  document.querySelectorAll(".qchips").forEach((el) => {
+    if (el.nextElementSibling?.classList.contains("sdots")) return;
+    el.insertAdjacentHTML("afterend", '<div class="sdots" aria-hidden="true"></div>');
+    updDots(el);
+  });
+}
+function updDots(el) {
+  const d = el.nextElementSibling;
+  if (!d || !d.classList.contains("sdots")) return;
+  const over = el.scrollWidth - el.clientWidth;
+  if (over < 4) { d.hidden = true; return; }
+  d.hidden = false;
+  const n = Math.max(3, Math.ceil(el.scrollWidth / el.clientWidth));
+  const on = Math.round((el.scrollLeft / over) * (n - 1));
+  d.innerHTML = Array.from({ length: n }, (_, i) => `<i${i === on ? ' class="on"' : ""}></i>`).join("");
+}
+document.addEventListener("scroll", (e) => { if (e.target.classList?.contains("qchips")) updDots(e.target); }, true);
+document.addEventListener("toggle", (e) => e.target.querySelectorAll?.(".qchips").forEach(updDots), true);
+addEventListener("resize", () => document.querySelectorAll(".qchips").forEach(updDots));
 function route(keepScroll) {
   const [path, qs] = (location.hash.slice(1) || "/").split("?");
   const params = new URLSearchParams(qs || "");
@@ -1284,6 +1327,7 @@ function route(keepScroll) {
   view.innerHTML = (root ? "" : `<div class="backbar"><button class="back" id="back">${L("← Back", "← Înapoi")}</button></div>`) + reminder + html + helpBar;
   scrollTo(0, keepScroll === true ? y : tab !== "item" && SCROLL[location.hash] ? SCROLL[location.hash] : 0);
   AFTER.forEach((f) => f());
+  addScrollDots();
   track("page_" + tab, params.get("q") ? { search: params.get("q") } : tab === "item" ? { video: decodeURIComponent(parts[1] || "") } : null);
   if (params.get("q")) track("search");
 }
